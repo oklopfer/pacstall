@@ -991,6 +991,12 @@ function genextr_declare() {
     makedepends+=("${ext_dep}")
 }
 
+function clean_fail_down() {
+    fancy_message info "Cleaning up"
+    cleanup
+    exit 1
+}
+
 function hashcheck() {
     local file="${1}"
     local inputHash="${2}"
@@ -1006,17 +1012,8 @@ function hashcheck() {
         fancy_message sub "Got:      ${BRed}${fileHash}${NC}"
         fancy_message sub "Expected: ${BGreen}${inputHash}${NC}"
         error_log 16 "install $PACKAGE"
-        fancy_message info "Cleaning up"
-        cleanup
-        return 1
+        clean_fail_down
     fi
-    return 0
-}
-
-function clean_fail_down() {
-    fancy_message info "Cleaning up"
-    cleanup
-    exit 1
 }
 
 function fail_down() {
@@ -1025,20 +1022,111 @@ function fail_down() {
     clean_fail_down
 }
 
+function gather_down() {
+    local target_dir="${PACKAGE}~${pkgver}"
+    if [[ ! -d "$target_dir" ]]; then
+        mkdir -p "$target_dir"
+    fi
+    find . -mindepth 1 -maxdepth 1 ! -name "$target_dir" -exec mv {} "$target_dir/" \;
+    cd "$target_dir" || {
+        error_log 1 "gather-main $PACKAGE"
+        fancy_message warn "Could not enter into the main directory $target_dir"
+    }
+}
+
 function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-	local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
-	[[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
-	[[ -n "$dest" ]] && gitopts="-C $dest $gitopts"; gitopts+=" ."
+    local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
+    [[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
+    [[ -n "$dest" ]] && gitopts="-C $dest $gitopts"; gitopts+=" ."
     git clone "${gitopts[@]}"
-	# cd into the directory
-    cd ./*/ 2> /dev/null || {
-        error_log 1 "install $PACKAGE"
-        fancy_message warn "Could not enter into the cloned git repository"
-        clean_fail_down
-    }
+    # cd into the directory
+    if [[ -z "${source[1]}" ]]; then
+        cd ./*/ 2> /dev/null || {
+            error_log 1 "install $PACKAGE"
+            fancy_message warn "Could not enter into the cloned git repository"
+        }
+    else
+        gather_down
+    fi
+    
     # Check the integrity
     git fsck --full || return 1
+}
+
+function hashcheck_down() {
+    case "${url,,}" in
+        *.patch | *.diff)
+            if ! curl -sJLO "$url"; then
+                fail_down
+            fi
+            ;;
+        *)
+            if ! download "$url"; then
+                fail_down
+            fi
+            ;;
+    esac
+    hashcheck "${file_name}" "${expectedHash}" || return 1
+}
+
+function genextr_down() {
+    genextr_declare
+    hashcheck_down
+    fancy_message info "Extracting ${file_name}"
+    ${ext_method} "${file_name}" 1>&1 2> /dev/null
+    if [[ -f "${file_name}" ]]; then
+        rm -f "${file_name}"
+    fi
+    if [[ -z "${source[1]}" ]]; then
+        cd ./*/ 2> /dev/null || {
+            error_log 1 "install $PACKAGE"
+            fancy_message warn "Could not enter into the downloaded archive"
+        }
+    else
+        gather_down
+    fi
+}
+
+function deb_down() {
+    hashcheck_down
+    if type -t pre_install &> /dev/null; then
+        if ! pre_install; then
+            error_log 5 "pre_install hook"
+            fancy_message error "Could not run preinst hook successfully"
+            exit 1
+        fi
+    fi
+    if sudo apt install -y -f ./"${file_name}" 2> /dev/null; then
+        log
+        if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
+            sudo apt-mark auto "${gives:-$name}" 2> /dev/null
+        fi
+        if type -t post_install &> /dev/null; then
+            if ! post_install; then
+                error_log 5 "post_install hook"
+                fancy_message error "Could not run post_install hook successfully"
+                exit 1
+            fi
+        fi
+        fancy_message info "Storing pacscript"
+        sudo mkdir -p "/var/cache/pacstall/$PACKAGE/${full_version}"
+        if ! cd "$DIR" 2> /dev/null; then
+            error_log 1 "install $PACKAGE"
+            fancy_message error "Could not enter into ${DIR}"
+            exit 1
+        fi
+        sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
+        sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
+        fancy_message info "Cleaning up"
+        cleanup
+        return 0
+    else
+        fancy_message error "Failed to install the package"
+        error_log 14 "install $PACKAGE"
+        sudo apt purge "${gives:-$name}" -y > /dev/null
+        clean_fail_down
+    fi
 }
 
 function hashcheck_down() {
@@ -1146,7 +1234,7 @@ if [[ -f /tmp/pacstall-pacdeps-"$PACKAGE" ]]; then
     mkdir -p "/tmp/pacstall-pacdep"
     if ! cd "/tmp/pacstall-pacdep" 2> /dev/null; then
         error_log 1 "install $PACKAGE"
-        fancy_message error "Could not enter ${SRCDIR}"
+        fancy_message error "Could not enter /tmp/pacstall-pacdep"
         exit 1
     fi
 else
@@ -1161,8 +1249,8 @@ fi
 mkdir -p "${SRCDIR}"
 
 for i in "${!source[@]}"; do
-    local url="${source[$i]}"
-    local expectedHash="${hash[$i]}"
+    url="${source[$i]}"
+    expectedHash="${hash[$i]}"
     if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
         file_name="${PACSTALL_PAYLOAD##*/}"
     else
