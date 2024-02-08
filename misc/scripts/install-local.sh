@@ -1027,8 +1027,11 @@ function fail_down() {
 
 function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url"
-    # cd into the directory
+	local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
+	[[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
+	[[ -n "$dest" ]] && gitopts="-C $dest $gitopts"; gitopts+=" ."
+    git clone "${gitopts[@]}"
+	# cd into the directory
     cd ./*/ 2> /dev/null || {
         error_log 1 "install $PACKAGE"
         fancy_message warn "Could not enter into the cloned git repository"
@@ -1106,10 +1109,36 @@ function deb_down() {
     fi
 }
 
+function git_default_branch() {
+	local remoteinfo string
+	read -ra remoteinfo < <(git ls-remote --symref "$1" HEAD)
+	for string in "${remoteinfo[@]}"; do
+		if [[ $string == refs/heads/* ]]; then
+			printf '%s\n' "${string##refs/heads/}"
+		fi
+	done || echo "master"
+}
+
+function is_url() {
+	[[ $1 =~ [a-z]*:\/\/ ]]
+}
+
 for i in "${!source[@]}"; do
-    local url="${source[$i]}"
-    genextr_declare
+	entry="${source[$i]}"
+	mapfile -t values <<< "${entry//::/$'\n'}"
+	for value in "${values[@]}"; do
+		if is_url "$value"; then
+			url="$value"
+		elif [[ $value == "${values[0]}" ]]; then
+			dest="${value%.*}"
+		else
+			gitrev="$value"
+		fi
+	done
+
+	genextr_declare
 done
+
 install_builddepends
 
 fancy_message info "Retrieving packages"
