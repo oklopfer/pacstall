@@ -99,7 +99,7 @@ function log() {
             echo "_homepage=\"${homepage}"\"
         fi
         if [[ -z $gives && $name == *-deb ]]; then
-            echo "_gives=\"$(dpkg -f ./"${url##*/}" | sed -n "s/^Package: //p")"\"
+            echo "_gives=\"$(dpkg -f ./"${source##*/[0]}" | sed -n "s/^Package: //p")"\"
         elif [[ -n $gives ]]; then
             echo "_gives=\"$gives"\"
         fi
@@ -498,7 +498,7 @@ function makedeb() {
     fi
 
     if [[ $name == *-git ]]; then
-        deblog "Vcs-Git" "${url}"
+        deblog "Vcs-Git" "${source[0]}"
     fi
 
     if [[ -n ${makedepends[*]} ]]; then
@@ -745,8 +745,8 @@ fi
 
 # Running `-B` on a deb package doesn't make sense, so let's download instead
 if ((PACSTALL_INSTALL == 0)) && [[ ${name} == *-deb ]]; then
-    if ! download "${url}"; then
-        fancy_message error "Failed to download '${url}'"
+    if ! download "${source[0]}"; then
+        fancy_message error "Failed to download '${source[0]}'"
         return 1
     fi
     return 0
@@ -905,35 +905,103 @@ if ! is_package_installed "${name}"; then
     fi
 fi
 
-if [[ -n ${makedepends[*]} ]]; then
-    for build_dep in "${makedepends[@]}"; do
-        if ! is_apt_package_installed "${build_dep}"; then
-            # If not installed yet, we can mark it as possibly removable
-            not_installed_yet_builddepends+=("${build_dep}")
-        fi
-    done
+function install_builddepends() {
+    if [[ -n ${makedepends[*]} ]]; then
+        for build_dep in "${makedepends[@]}"; do
+            if ! is_apt_package_installed "${build_dep}"; then
+                # If not installed yet, we can mark it as possibly removable
+                not_installed_yet_builddepends+=("${build_dep}")
+            fi
+        done
 
-    if ((${#not_installed_yet_builddepends[@]} != 0)); then
-        fancy_message info "${BLUE}$name${NC} requires ${CYAN}${not_installed_yet_builddepends[*]}${NC} to install"
-        if ! sudo apt-get install -y "${not_installed_yet_builddepends[@]}"; then
-            fancy_message error "Failed to install build dependencies"
-            error_log 8 "install $PACKAGE"
-            fancy_message info "Cleaning up"
-            cleanup
-            return 1
+        if ((${#not_installed_yet_builddepends[@]} != 0)); then
+            fancy_message info "${BLUE}$name${NC} requires ${CYAN}${not_installed_yet_builddepends[*]}${NC} to install"
+            if ! sudo apt-get install -y "${not_installed_yet_builddepends[@]}"; then
+                fancy_message error "Failed to install build dependencies"
+                error_log 8 "install $PACKAGE"
+                fancy_message info "Cleaning up"
+                cleanup
+                return 1
+            fi
         fi
     fi
-fi
+}
+
+function genextr_declare() {
+    ext_method=""
+    ext_dep=""
+    case "${url,,}" in
+        *.zip)
+            ext_method="unzip -qo"
+            ext_dep="unzip"
+            ;;
+        *.tar.gz | *.tgz)
+            ext_method="tar -xzf"
+            ext_dep="tar"
+            ;;
+        *.tar.bz2 | *.tbz2)
+            ext_method="tar -xjf"
+            ext_dep="tar"
+            ;;
+        *.tar.xz | *.txz)
+            ext_method="tar -xJf"
+            ext_dep="tar"
+            ;;
+        *.gz)
+            ext_method="gunzip"
+            ext_dep="gzip"
+            ;;
+        *.bz2)
+            ext_method="bunzip2"
+            ext_dep="bzip2"
+            ;;
+        *.xz)
+            ext_method="unxz"
+            ext_dep="xz-utils"
+            ;;
+        *.lz)
+            ext_method="lzip -d"
+            ext_dep="lzip"
+            ;;
+        *.lzma)
+            ext_method="unlzma"
+            ext_dep="xz-utils"
+            ;;
+        *.zst)
+            ext_method="unzstd -q"
+            ext_dep="zstd"
+            ;;
+        *.7z)
+            ext_method="7za x"
+            ext_dep="p7zip-full"
+            ;;
+        *.rar)
+            ext_method="unrar x -inul"
+            ext_dep="unrar"
+            ;;
+        *.lz4)
+            ext_method="lz4 -d"
+            ext_dep="liblz4-tool"
+            ;;
+        *.tar)
+            ext_method="tar -xf"
+            ext_dep="tar"
+            ;;
+    esac
+    makedepends+=("${ext_dep}")
+}
 
 function hashcheck() {
-    local inputHash="${hash}"
+    local file="${1}"
+    local inputHash="${2}"
+
     # Get hash of file
-    local fileHash="$(sha256sum "${1}")"
+    local fileHash="$(sha256sum "${file}")"
     fileHash="${fileHash%% *}"
 
     # Check if the input hash is the same as of the downloaded file.
     # Skip this test if the hash variable doesn't exist in the pacscript.
-    if [[ -n ${hash} && ${inputHash} != "${fileHash}" ]]; then
+    if [[ -n ${inputHash} && ${inputHash} != "${fileHash}" ]]; then
         fancy_message error "Hashes do not match"
         fancy_message sub "Got:      ${BRed}${fileHash}${NC}"
         fancy_message sub "Expected: ${BGreen}${inputHash}${NC}"
@@ -944,6 +1012,105 @@ function hashcheck() {
     fi
     return 0
 }
+
+function clean_fail_down() {
+    fancy_message info "Cleaning up"
+    cleanup
+    exit 1
+}
+
+function fail_down() {
+    error_log 1 "download $PACKAGE"
+    fancy_message error "Failed to download package"
+    clean_fail_down
+}
+
+function git_down() {
+    # git clone quietly, with no history, and if submodules are there, download with 10 jobs
+    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url"
+    # cd into the directory
+    cd ./*/ 2> /dev/null || {
+        error_log 1 "install $PACKAGE"
+        fancy_message warn "Could not enter into the cloned git repository"
+        clean_fail_down
+    }
+    # Check the integrity
+    git fsck --full || return 1
+}
+
+function hashcheck_down() {
+    case "${url,,}" in
+        *.patch | *.diff)
+            if ! curl -sJLO "$url"; then
+                fail_down
+            fi
+            ;;
+        *)
+            if ! download "$url"; then
+                fail_down
+            fi
+            ;;
+    esac
+    hashcheck "${file_name}" "${expectedHash}" || return 1
+}
+
+function genextr_down() {
+    genextr_declare
+    hashcheck_down
+    fancy_message info "Extracting ${file_name}"
+    "${ext_method}" "${file_name}" 1>&1 2> /dev/null
+    cd ./*/ 2> /dev/null || {
+        error_log 1 "install $PACKAGE"
+        fancy_message warn "Could not enter into the downloaded archive"
+    }
+}
+
+function deb_down() {
+    hashcheck_down
+    if type -t pre_install &> /dev/null; then
+        if ! pre_install; then
+            error_log 5 "pre_install hook"
+            fancy_message error "Could not run preinst hook successfully"
+            exit 1
+        fi
+    fi
+    if sudo apt install -y -f ./"${file_name}" 2> /dev/null; then
+        log
+        if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
+            sudo apt-mark auto "${gives:-$name}" 2> /dev/null
+        fi
+        if type -t post_install &> /dev/null; then
+            if ! post_install; then
+                error_log 5 "post_install hook"
+                fancy_message error "Could not run post_install hook successfully"
+                exit 1
+            fi
+        fi
+        fancy_message info "Storing pacscript"
+        sudo mkdir -p "/var/cache/pacstall/$PACKAGE/${full_version}"
+        if ! cd "$DIR" 2> /dev/null; then
+            error_log 1 "install $PACKAGE"
+            fancy_message error "Could not enter into ${DIR}"
+            exit 1
+        fi
+        sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
+        sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
+        fancy_message info "Cleaning up"
+        cleanup
+        return 0
+    else
+        fancy_message error "Failed to install the package"
+        error_log 14 "install $PACKAGE"
+        sudo apt purge "${gives:-$name}" -y > /dev/null
+        clean_fail_down
+    fi
+}
+
+for i in "${!source[@]}"; do
+    local url="${source[$i]}"
+    genextr_declare
+done
+install_builddepends
 
 fancy_message info "Retrieving packages"
 if [[ -f /tmp/pacstall-pacdeps-"$PACKAGE" ]]; then
@@ -964,144 +1131,29 @@ fi
 
 mkdir -p "${SRCDIR}"
 
-if [[ -n $patch ]]; then
-    fancy_message info "Downloading patches"
-    mkdir -p PACSTALL_patchesdir
-    # NOTE: not using --output-dir,
-    # since Buster/Focal include a version of curl w/o that option.
-    pushd PACSTALL_patchesdir > /dev/null || {
-        fancy_message error "Could not enter into patches directory"
-        return 1
-    }
-    for i in "${patch[@]}"; do
-        curl -sO "$i"
-    done
-    popd > /dev/null || {
-        fancy_message error "Could not enter into patches directory"
-        return 1
-    }
-    export PACPATCH="$PWD/PACSTALL_patchesdir"
-fi
-
-if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
-    file_name="${PACSTALL_PAYLOAD##*/}"
-else
-    file_name="${url##*/}"
-fi
-
-if [[ $name == *-git ]]; then
-    # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url"
-    # cd into the directory
-    cd ./*/ 2> /dev/null || {
-        error_log 1 "install $PACKAGE"
-        fancy_message warn "Could not enter into the cloned git repository"
-        fancy_message info "Cleaning up"
-        cleanup
-        exit 1
-    }
-    # Check the integrity
-    git fsck --full || return 1
-else
+for i in "${!source[@]}"; do
+    local url="${source[$i]}"
+    local expectedHash="${hash[$i]}"
+    if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
+        file_name="${PACSTALL_PAYLOAD##*/}"
+    else
+        file_name="${url##*/}"
+    fi
     case "${url,,}" in
-        *.zip)
-            if ! download "$url"; then
-                error_log 1 "download $PACKAGE"
-                fancy_message error "Failed to download package"
-                fancy_message info "Cleaning up"
-                cleanup
-                exit 1
-            fi
-            # hash the file
-            hashcheck "${file_name}" || return 1
-            # unzip file
-            fancy_message info "Extracting ${file_name}"
-            unzip -qo "${file_name}" 1>&1 2> /dev/null
-            # cd into it
-            cd ./*/ 2> /dev/null || {
-                error_log 1 "install $PACKAGE"
-                fancy_message warn "Could not enter into the downloaded archive"
-            }
+        *.git)
+            git_down
             ;;
         *.deb)
-            if ! download "$url"; then
-                error_log 1 "download $PACKAGE"
-                fancy_message error "Failed to download package"
-                fancy_message info "Cleaning up"
-                cleanup
-                exit 1
-            fi
-            hashcheck "${file_name}" || return 1
-            if type -t pre_install &> /dev/null; then
-                if ! pre_install; then
-                    error_log 5 "pre_install hook"
-                    fancy_message error "Could not run preinst hook successfully"
-                    exit 1
-                fi
-            fi
-            if sudo apt install -y -f ./"${file_name}" 2> /dev/null; then
-                log
-                if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
-                    sudo apt-mark auto "${gives:-$name}" 2> /dev/null
-                fi
-                if type -t post_install &> /dev/null; then
-                    if ! post_install; then
-                        error_log 5 "post_install hook"
-                        fancy_message error "Could not run post_install hook successfully"
-                        exit 1
-                    fi
-                fi
-
-                fancy_message info "Storing pacscript"
-                sudo mkdir -p "/var/cache/pacstall/$PACKAGE/${full_version}"
-                if ! cd "$DIR" 2> /dev/null; then
-                    error_log 1 "install $PACKAGE"
-                    fancy_message error "Could not enter into ${DIR}"
-                    exit 1
-                fi
-                sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
-                sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
-                fancy_message info "Cleaning up"
-                cleanup
-                return 0
-
-            else
-                fancy_message error "Failed to install the package"
-                error_log 14 "install $PACKAGE"
-                sudo apt purge "${gives:-$name}" -y > /dev/null
-                fancy_message info "Cleaning up"
-                cleanup
-                return 1
-            fi
+            deb_down
             ;;
-        *.appimage)
-            if ! download "$url"; then
-                error_log 1 "download $PACKAGE"
-                fancy_message error "Failed to download package"
-                fancy_message info "Cleaning up"
-                cleanup
-                exit 1
-            fi
-            hashcheck "${file_name}" || return 1
+        *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
+            genextr_down
             ;;
-        *)
-            if ! download "$url"; then
-                error_log 1 "download $PACKAGE"
-                fancy_message error "Failed to download package"
-                fancy_message info "Cleaning up"
-                cleanup
-                exit 1
-            fi
-            hashcheck "${file_name}" || return 1
-            fancy_message info "Extracting ${file_name}"
-            tar -xf "${file_name}" 1>&1 2> /dev/null
-            cd ./*/ 2> /dev/null || {
-                error_log 1 "install $PACKAGE"
-                fancy_message warn "Could not enter into the downloaded archive"
-            }
+        *.appimage | *)
+            hashcheck_down
             ;;
     esac
-fi
+done
 
 export srcdir="$PWD"
 sudo chown -R "$PACSTALL_USER":"$PACSTALL_USER" . 2> /dev/null
