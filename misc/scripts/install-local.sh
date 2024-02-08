@@ -1038,9 +1038,12 @@ function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
     local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
     [[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
-    [[ -n "$dest" ]] || dest="${file_name%.git}"
-    gitopts="-C $dest $gitopts ."
-    mkdir -p "$dest"
+    if [[ -n "$dest" ]]; then
+        gitopts="-C $dest $gitopts ."
+	    mkdir -p "$dest"
+	else
+        dest="${file_name%.git}"
+	fi
     git clone "$gitopts"
     # cd into the directory
     cd "./$dest" 2> /dev/null || {
@@ -1198,18 +1201,8 @@ function deb_down() {
     fi
 }
 
-function git_default_branch() {
-	local remoteinfo string
-	read -ra remoteinfo < <(git ls-remote --symref "$1" HEAD)
-	for string in "${remoteinfo[@]}"; do
-		if [[ $string == refs/heads/* ]]; then
-			printf '%s\n' "${string##refs/heads/}"
-		fi
-	done || echo "master"
-}
-
 function is_url() {
-	[[ $1 =~ [a-z]*:\/\/ ]]
+	[[ $1 =~ ^[a-z]*:\/\/ ]]
 }
 
 for i in "${!source[@]}"; do
