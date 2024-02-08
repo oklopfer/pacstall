@@ -1038,20 +1038,21 @@ function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
     local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
     [[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
-    [[ -n "$dest" ]] && gitopts="-C $dest $gitopts"; gitopts+=" ."
-    git clone "${gitopts[@]}"
+    [[ -n "$dest" ]] || dest="${file_name%.git}"
+    gitopts="-C $dest $gitopts ."
+    mkdir -p "$dest"
+    git clone "$gitopts"
     # cd into the directory
-    if [[ -z "${source[1]}" ]]; then
-        cd ./*/ 2> /dev/null || {
-            error_log 1 "install $PACKAGE"
-            fancy_message warn "Could not enter into the cloned git repository"
-        }
-    else
-        gather_down
-    fi
-    
+    cd "./$dest" 2> /dev/null || {
+        error_log 1 "install $PACKAGE"
+        fancy_message warn "Could not enter into the cloned git repository"
+    }
     # Check the integrity
     git fsck --full || return 1
+    if [[ -n "${source[1]}" ]]; then
+        cd ..
+        gather_down
+    fi
 }
 
 function hashcheck_down() {
