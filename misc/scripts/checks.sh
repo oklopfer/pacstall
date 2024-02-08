@@ -136,11 +136,21 @@ function lint_version() {
     return "${ret}"
 }
 
-function lint_url() {
+function lint_source() {
     local ret=0
-    if [[ -z $url ]]; then
-        fancy_message error "Package does not contain 'url'"
+    if [[ -z $source ]]; then
+        fancy_message error "Package does not contain 'source'"
         ret=1
+    elif [[ -n ${source[1]} ]]; then
+        for i in "${!source[@]}"; do
+            local url="${source[$i]}"
+            local file_name="${url##*/}"
+            if [[ ${file_name} == *.deb ]]; then
+                fancy_message error ".deb files can only be provided as a singular 'source'"
+                ret=1
+                break
+            fi
+        done
     fi
     return "${ret}"
 }
@@ -284,10 +294,14 @@ function lint_replace() {
 function lint_hash() {
     local ret=0
     if [[ -n ${hash} ]]; then
-        if ((${#hash} != 64)); then
-            fancy_message error "'hash' is improperly formatted"
-            ret=1
-        fi
+        for i in "${!hash[@]}"; do
+            if [[ ${hash[i]} == "SKIP" ]]; then
+                ret=0
+            elif ((${#hash[i]} != 64)); then
+                fancy_message error "'hash' is improperly formatted"
+                ret=1
+            fi
+        done
     fi
     return "${ret}"
 }
@@ -428,7 +442,7 @@ function lint_priority() {
 }
 
 function checks() {
-    local ret=0 check linting_checks=(lint_name lint_gives lint_pkgrel lint_epoch lint_version lint_url lint_pkgdesc lint_maintainer lint_makedepends lint_depends lint_pacdeps lint_ppa lint_optdepends lint_breaks lint_replace lint_hash lint_patch lint_provides lint_incompatible lint_arch lint_mask lint_priority)
+    local ret=0 check linting_checks=(lint_name lint_gives lint_pkgrel lint_epoch lint_version lint_source lint_pkgdesc lint_maintainer lint_makedepends lint_depends lint_pacdeps lint_ppa lint_optdepends lint_breaks lint_replace lint_hash lint_patch lint_provides lint_incompatible lint_arch lint_mask lint_priority)
     for check in "${linting_checks[@]}"; do
         "${check}" || ret=1
     done
