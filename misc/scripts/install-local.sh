@@ -1044,10 +1044,8 @@ function git_down() {
     if [[ -n "$dest" ]]; then
         gitopts="-C $dest $gitopts ."
 	    mkdir -p "$dest"
-	else
-        dest="${file_name%.git}"
 	fi
-    git clone "$gitopts"
+	git clone $gitopts
     # cd into the directory
     cd "./$dest" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
@@ -1064,12 +1062,12 @@ function git_down() {
 function hashcheck_down() {
     case "${url,,}" in
         *.patch | *.diff)
-            if ! curl -sJLO "$url"; then
+            if ! curl -sLo "$dest" "$url"; then
                 fail_down
             fi
             ;;
         *)
-            if ! download "$url"; then
+            if ! download "$url" "$dest"; then
                 fail_down
             fi
             ;;
@@ -1138,19 +1136,22 @@ function is_url() {
 	[[ $1 =~ ^[a-z]*:\/\/ ]]
 }
 
-for i in "${!source[@]}"; do
-	entry="${source[$i]}"
-	mapfile -t values <<< "${entry//::/$'\n'}"
-	for value in "${values[@]}"; do
-		if is_url "$value"; then
-			url="$value"
-		elif [[ $value == "${values[0]}" ]]; then
-			dest="${value%.*}"
+function parse_source_entry() {
+	local entry="$1" attr attrs
+	mapfile -t attrs <<< "${entry//::/$'\n'}"
+	for attr in "${attrs[@]}"; do
+		if is_url "$attr"; then
+			url="$attr"
+		elif [[ $attr == "${attrs[0]}" ]]; then
+			dest="${attr%.*}"
 		else
-			gitrev="$value"
+			gitrev="$attr"
 		fi
 	done
+}
 
+for i in "${!source[@]}"; do
+	parse_source_entry "${source[$i]}"
 	genextr_declare
 done
 install_builddepends
