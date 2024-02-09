@@ -988,9 +988,8 @@ function genextr_declare() {
             ext_dep="tar"
             ;;
     esac
-
     if [[ -n "${ext_dep}" && ! ${makedepends[*]} == *${ext_dep}* ]]; then
-		makedepends+=("${ext_dep}")
+        makedepends+=("${ext_dep}")
     fi
 }
 
@@ -1003,8 +1002,7 @@ function clean_fail_down() {
 function hashcheck() {
     local file="${1}"
     local inputHash="${2}"
-	[[ "${inputHash}" == "SKIP" ]] && return 0
-
+    [[ "${inputHash}" == "SKIP" ]] && return 0
     # Get hash of file
     local fileHash="$(sha256sum "${file}")"
     fileHash="${fileHash%% *}"
@@ -1024,6 +1022,19 @@ function fail_down() {
     error_log 1 "download $PACKAGE"
     fancy_message error "Failed to download package"
     clean_fail_down
+}
+
+function gather_down() {
+    local target_name="${PACKAGE}~${pkgver}"
+    local target_dir="${SRCDIR}/${target_name}"
+    if [[ ! -d "${target_dir}" ]]; then
+        mkdir -p "${target_dir}"
+    fi
+    find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
+    cd "${target_dir}" || {
+        error_log 1 "gather-main $PACKAGE"
+        fancy_message warn "Could not enter into the main directory ${target_dir}"
+    }
 }
 
 function git_down() {
@@ -1180,6 +1191,9 @@ for i in "${!source[@]}"; do
             ;;
         *)
             hashcheck_down
+            if [[ -n "${source[1]}" ]]; then
+                gather_down
+            fi
             ;;
     esac
 done

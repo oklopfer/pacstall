@@ -284,12 +284,14 @@ function lint_replace() {
 function lint_hash() {
     local ret=0
     if [[ -n ${hash} ]]; then
-        if [[ ${hash} == "SKIP" ]]; then
-            ret=0
-        elif ((${#hash} != 64)); then
-            fancy_message error "'hash' is improperly formatted"
-            ret=1
-        fi
+        for i in "${!hash[@]}"; do
+            if [[ ${hash[i]} == "SKIP" ]]; then
+                ret=0
+            elif ((${#hash[i]} != 64)); then
+                fancy_message error "'hash' is improperly formatted"
+                ret=1
+            fi
+        done
     fi
     return "${ret}"
 }
