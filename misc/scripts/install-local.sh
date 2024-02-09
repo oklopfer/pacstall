@@ -990,7 +990,7 @@ function genextr_declare() {
     esac
 
     if [[ -n "${ext_dep}" ]]; then
-        makedepends+=("${ext_dep}")
+        [[ "${makedepends[@]}" == *"${ext_dep}"* ]] || makedepends+=("${ext_dep}")
     fi
 }
 
