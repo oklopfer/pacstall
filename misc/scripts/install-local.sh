@@ -1026,19 +1026,6 @@ function fail_down() {
     clean_fail_down
 }
 
-function gather_down() {
-    local target_name="${PACKAGE}~${pkgver}"
-    local target_dir="${SRCDIR}/${target_name}"
-    if [[ ! -d "$target_dir" ]]; then
-        mkdir -p "$target_dir"
-    fi
-    find . -mindepth 1 -maxdepth 1 ! -name "$target_name" -exec mv {} "$target_dir/" \;
-    cd "$target_dir" || {
-        error_log 1 "gather-main $PACKAGE"
-        fancy_message warn "Could not enter into the main directory $target_dir"
-    }
-}
-
 function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
     local gitopts="clone --quiet --depth=1 --recurse-submodules --jobs=10 $url"
@@ -1048,19 +1035,11 @@ function git_down() {
 	    mkdir -p "$dest"
 	fi
 	git $gitopts
-    # cd into the directory
-    cd "./$dest" 2> /dev/null || {
-        error_log 1 "install $PACKAGE"
-        fancy_message warn "Could not enter into the cloned git repository"
-    }
+
     # Check the integrity
     git fsck --full || return 1
-    if [[ -n "${source[1]}" ]]; then
-        cd ..
-		if [[ ${source[*]} == *${dest}*${dest}* ]]; then
-            mv "./$dest" "./${dest}~$(<${dest}/.git/refs/heads/*)"
-        fi
-        gather_down
+	if [[ ${source[*]} == *${dest}*${dest}* ]]; then
+        mv "./$dest" "./${dest}~$(<${dest}/.git/refs/heads/*)"
     fi
 }
 
@@ -1076,14 +1055,6 @@ function genextr_down() {
     ${ext_method} "${dest}" 1>&1 2> /dev/null
     if [[ -f "${dest}" ]]; then
         rm -f "${dest}"
-    fi
-    if [[ -z "${source[1]}" ]]; then
-        cd ./*/ 2> /dev/null || {
-            error_log 1 "install $PACKAGE"
-            fancy_message warn "Could not enter into the downloaded archive"
-        }
-    else
-        gather_down
     fi
 }
 
@@ -1126,6 +1097,24 @@ function deb_down() {
     fi
 }
 
+function gather_objects() {
+    local target_name="${PACKAGE}~${pkgver}"
+    local target_dir="${SRCDIR}/${target_name}"
+	local obj objects
+	read -ra objects < <(for obj in ./*; do printf '%s ' "$obj"; done)
+
+	if [[ ${#objects[*]} == 1 && -d ${objects[0]} ]]; then
+		mv "${objects[0]}" "$target_dir"
+	else
+		mkdir -p "$target_dir"
+		find . -mindepth 1 -maxdepth 1 ! -name "$target_name" -exec mv {} "$target_dir/" \;
+	fi
+    cd "$target_dir" || {
+        error_log 1 "gather-main $PACKAGE"
+        fancy_message warn "Could not enter into the main directory $target_dir"
+    }
+}
+
 function is_url() {
 	[[ $1 =~ ^[a-z]*:\/\/ ]]
 }
@@ -1156,6 +1145,7 @@ done
 install_builddepends
 
 fancy_message info "Retrieving packages"
+mkdir -p "${SRCDIR}"
 if [[ -f /tmp/pacstall-pacdeps-"$PACKAGE" ]]; then
     mkdir -p "/tmp/pacstall-pacdep"
     if ! cd "/tmp/pacstall-pacdep" 2> /dev/null; then
@@ -1164,15 +1154,12 @@ if [[ -f /tmp/pacstall-pacdeps-"$PACKAGE" ]]; then
         exit 1
     fi
 else
-    mkdir -p "$SRCDIR"
     if ! cd "$SRCDIR" 2> /dev/null; then
         error_log 1 "install $PACKAGE"
         fancy_message error "Could not enter ${SRCDIR}"
         exit 1
     fi
 fi
-
-mkdir -p "${SRCDIR}"
 
 for i in "${!source[@]}"; do
 	parse_source_entry "${source[$i]}"
@@ -1197,6 +1184,7 @@ for i in "${!source[@]}"; do
     esac
 done
 
+gather_objects
 export srcdir="$PWD"
 sudo chown -R "$PACSTALL_USER":"$PACSTALL_USER" . 2> /dev/null
 
