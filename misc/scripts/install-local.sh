@@ -1027,7 +1027,7 @@ function fail_down() {
 }
 
 function gather_down() {
-    local target_dir="${PACKAGE}~${pkgver}"
+    local target_dir="${SRCDIR}/${PACKAGE}~${pkgver}"
     if [[ ! -d "$target_dir" ]]; then
         mkdir -p "$target_dir"
     fi
