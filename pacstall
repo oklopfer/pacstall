@@ -300,7 +300,7 @@ function check_url() {
 
 # use axel if available
 function download() {
-	local src="$1" out="$2:-${src##*/}"
+	local src="$1" out="${2:-${src##*/}}"
     if [[ $PACSTALL_DOWNLOADER != "payload" ]]; then
         sudo rm -f "$out"
     fi
