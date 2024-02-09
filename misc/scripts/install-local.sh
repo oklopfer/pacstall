@@ -1142,6 +1142,8 @@ function parse_source_entry() {
 			gitrev="$attr"
 		fi
 	done
+
+	[[ -n "$dest" ]] || dest="${url##*/}"
 }
 
 for i in "${!source[@]}"; do
