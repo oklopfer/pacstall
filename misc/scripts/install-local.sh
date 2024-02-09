@@ -1040,13 +1040,13 @@ function gather_down() {
 
 function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    local gitopts="--quiet --depth=1 --recurse-submodules --jobs=10 $url"
+    local gitopts="clone --quiet --depth=1 --recurse-submodules --jobs=10 $url"
     [[ -n "$gitrev" ]] && gitopts+=" --branch $gitrev"
     if [[ -n "$dest" ]]; then
         gitopts="-C $dest $gitopts ."
 	    mkdir -p "$dest"
 	fi
-	git clone $gitopts
+	git $gitopts
     # cd into the directory
     cd "./$dest" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
