@@ -1024,19 +1024,6 @@ function fail_down() {
     clean_fail_down
 }
 
-function gather_down() {
-    local target_name="${PACKAGE}~${pkgver}"
-    local target_dir="${SRCDIR}/${target_name}"
-    if [[ ! -d "${target_dir}" ]]; then
-        mkdir -p "${target_dir}"
-    fi
-    find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
-    cd "${target_dir}" || {
-        error_log 1 "gather-main $PACKAGE"
-        fancy_message warn "Could not enter into the main directory ${target_dir}"
-    }
-}
-
 function git_down() {
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
     local gitopts="clone --quiet --depth=1 --recurse-submodules --jobs=10 $url"
@@ -1191,9 +1178,6 @@ for i in "${!source[@]}"; do
             ;;
         *)
             hashcheck_down
-            if [[ -n "${source[1]}" ]]; then
-                gather_down
-            fi
             ;;
     esac
 done
