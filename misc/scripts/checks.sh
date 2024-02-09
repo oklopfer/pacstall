@@ -284,7 +284,9 @@ function lint_replace() {
 function lint_hash() {
     local ret=0
     if [[ -n ${hash} ]]; then
-        if ((${#hash} != 64)); then
+        if [[ ${hash} == "SKIP" ]]; then
+            ret=0
+        elif ((${#hash} != 64)); then
             fancy_message error "'hash' is improperly formatted"
             ret=1
         fi
