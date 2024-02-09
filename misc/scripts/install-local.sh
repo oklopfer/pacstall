@@ -1072,16 +1072,16 @@ function hashcheck_down() {
             fi
             ;;
     esac
-    hashcheck "${file_name}" "${expectedHash}" || return 1
+    hashcheck "${dest}" "${expectedHash}" || return 1
 }
 
 function genextr_down() {
     genextr_declare
     hashcheck_down
-    fancy_message info "Extracting ${file_name}"
-    ${ext_method} "${file_name}" 1>&1 2> /dev/null
-    if [[ -f "${file_name}" ]]; then
-        rm -f "${file_name}"
+    fancy_message info "Extracting ${dest}"
+    ${ext_method} "${dest}" 1>&1 2> /dev/null
+    if [[ -f "${dest}" ]]; then
+        rm -f "${dest}"
     fi
     if [[ -z "${source[1]}" ]]; then
         cd ./*/ 2> /dev/null || {
@@ -1102,7 +1102,7 @@ function deb_down() {
             exit 1
         fi
     fi
-    if sudo apt install -y -f ./"${file_name}" 2> /dev/null; then
+    if sudo apt install -y -f ./"${dest}" 2> /dev/null; then
         log
         if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
             sudo apt-mark auto "${gives:-$name}" 2> /dev/null
@@ -1137,6 +1137,8 @@ function is_url() {
 }
 
 function parse_source_entry() {
+	unset url dest gitrev
+
 	local entry="$1" attr attrs
 	mapfile -t attrs <<< "${entry//::/$'\n'}"
 	for attr in "${attrs[@]}"; do
@@ -1176,12 +1178,9 @@ fi
 mkdir -p "${SRCDIR}"
 
 for i in "${!source[@]}"; do
-    url="${source[$i]}"
     expectedHash="${hash[$i]}"
     if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
-        file_name="${PACSTALL_PAYLOAD##*/}"
-    else
-        file_name="${url##*/}"
+        dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
         *.git)
@@ -1193,7 +1192,7 @@ for i in "${!source[@]}"; do
         *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
             genextr_down
             ;;
-        *.appimage | *)
+        *)
             hashcheck_down
             ;;
     esac
