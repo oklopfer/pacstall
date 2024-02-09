@@ -928,8 +928,8 @@ function install_builddepends() {
 }
 
 function genextr_declare() {
-    ext_method=""
-    ext_dep=""
+    local ext_method="" ext_dep=""
+
     case "${url,,}" in
         *.zip)
             ext_method="unzip -qo"
@@ -989,8 +989,8 @@ function genextr_declare() {
             ;;
     esac
 
-    if [[ -n "${ext_dep}" ]]; then
-        [[ "${makedepends[@]}" == *"${ext_dep}"* ]] || makedepends+=("${ext_dep}")
+    if [[ -n "${ext_dep}" && ! ${makedepends[*]} == *${ext_dep}* ]]; then
+		makedepends+=("${ext_dep}")
     fi
 }
 
