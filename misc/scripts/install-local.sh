@@ -1145,7 +1145,7 @@ function parse_source_entry() {
 		if is_url "$attr"; then
 			url="$attr"
 		elif [[ $attr == "${attrs[0]}" ]]; then
-			dest="${attr%.*}"
+			dest="$attr"
 		else
 			gitrev="$attr"
 		fi
