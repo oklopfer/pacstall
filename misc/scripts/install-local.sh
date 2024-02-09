@@ -1148,6 +1148,11 @@ function parse_source_entry() {
 	[[ -n "$dest" ]] || dest="${url##*/}"
 }
 
+for i in "${!source[@]}"; do
+	parse_source_entry "${source[$i]}"
+	genextr_declare
+done
+
 install_builddepends
 
 fancy_message info "Retrieving packages"
