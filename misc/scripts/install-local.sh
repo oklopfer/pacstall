@@ -1003,6 +1003,7 @@ function clean_fail_down() {
 function hashcheck() {
     local file="${1}"
     local inputHash="${2}"
+	[[ "${inputHash}" == "SKIP" ]] && return 0
 
     # Get hash of file
     local fileHash="$(sha256sum "${file}")"
