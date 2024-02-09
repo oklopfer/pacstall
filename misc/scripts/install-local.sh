@@ -1055,6 +1055,9 @@ function git_down() {
     git fsck --full || return 1
     if [[ -n "${source[1]}" ]]; then
         cd ..
+		if [[ ${source[*]} == *${dest}*${dest}* ]]; then
+            mv "./$dest" "./${dest}~$(<${dest}/.git/refs/heads/*)"
+        fi
         gather_down
     fi
 }
@@ -1145,7 +1148,7 @@ function parse_source_entry() {
 		if is_url "$attr"; then
 			url="$attr"
 		elif [[ $attr == "${attrs[0]}" ]]; then
-			dest="$attr"
+			dest="${attr%.git}"
 		else
 			gitrev="$attr"
 		fi
