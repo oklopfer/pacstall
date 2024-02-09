@@ -988,7 +988,10 @@ function genextr_declare() {
             ext_dep="tar"
             ;;
     esac
-    makedepends+=("${ext_dep}")
+
+    if [[ -n "${ext_dep}" ]]; then
+        makedepends+=("${ext_dep}")
+    fi
 }
 
 function clean_fail_down() {
@@ -1153,11 +1156,18 @@ function genextr_down() {
     genextr_declare
     hashcheck_down
     fancy_message info "Extracting ${file_name}"
-    "${ext_method}" "${file_name}" 1>&1 2> /dev/null
-    cd ./*/ 2> /dev/null || {
-        error_log 1 "install $PACKAGE"
-        fancy_message warn "Could not enter into the downloaded archive"
-    }
+    ${ext_method} "${file_name}" 1>&1 2> /dev/null
+    if [[ -f "${file_name}" ]]; then
+        rm -f "${file_name}"
+    fi
+    if [[ -z "${source[1]}" ]]; then
+        cd ./*/ 2> /dev/null || {
+            error_log 1 "install $PACKAGE"
+            fancy_message warn "Could not enter into the downloaded archive"
+        }
+    else
+        gather_down
+    fi
 }
 
 function deb_down() {
@@ -1190,8 +1200,6 @@ function deb_down() {
         fi
         sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
         sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
-        fancy_message info "Cleaning up"
-        cleanup
         return 0
     else
         fancy_message error "Failed to install the package"
@@ -1220,7 +1228,6 @@ for i in "${!source[@]}"; do
 
 	genextr_declare
 done
-
 install_builddepends
 
 fancy_message info "Retrieving packages"
