@@ -1030,11 +1030,13 @@ function gather_down() {
     if [[ ! -d "${target_dir}" ]]; then
         mkdir -p "${target_dir}"
     fi
-    find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
-    cd "${target_dir}" || {
-        error_log 1 "gather-main $PACKAGE"
-        fancy_message warn "Could not enter into the main directory ${target_dir}"
-    }
+    if ! [[ "${PWD}" == "${target_dir}" ]]; then
+        find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
+        cd "${target_dir}" || {
+            error_log 1 "gather-main $PACKAGE"
+            fancy_message warn "Could not enter into the main directory ${target_dir}"
+        }
+    fi
 }
 
 function git_down() {
