@@ -1057,18 +1057,7 @@ function git_down() {
 }
 
 function hashcheck_down() {
-    case "${url,,}" in
-        *.patch | *.diff)
-            if ! curl -sJLO "$url"; then
-                fail_down
-            fi
-            ;;
-        *)
-            if ! download "$url"; then
-                fail_down
-            fi
-            ;;
-    esac
+    download "$url" || fail_down
     hashcheck "${file_name}" "${expectedHash}" || return 1
 }
 
