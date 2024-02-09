@@ -988,7 +988,7 @@ function genextr_declare() {
             ext_dep="tar"
             ;;
     esac
-    if [[ -n "${ext_dep}" ]]; then
+    if [[ -n "${ext_dep}" && ! ${makedepends[*]} == *${ext_dep}* ]]; then
         makedepends+=("${ext_dep}")
     fi
 }
@@ -1002,7 +1002,7 @@ function clean_fail_down() {
 function hashcheck() {
     local file="${1}"
     local inputHash="${2}"
-
+    [[ "${inputHash}" == "SKIP" ]] && return 0
     # Get hash of file
     local fileHash="$(sha256sum "${file}")"
     fileHash="${fileHash%% *}"
@@ -1025,14 +1025,15 @@ function fail_down() {
 }
 
 function gather_down() {
-    local target_dir="${PACKAGE}~${pkgver}"
-    if [[ ! -d "$target_dir" ]]; then
-        mkdir -p "$target_dir"
+    local target_name="${PACKAGE}~${pkgver}"
+    local target_dir="${SRCDIR}/${target_name}"
+    if [[ ! -d "${target_dir}" ]]; then
+        mkdir -p "${target_dir}"
     fi
-    find . -mindepth 1 -maxdepth 1 ! -name "$target_dir" -exec mv {} "$target_dir/" \;
-    cd "$target_dir" || {
+    find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
+    cd "${target_dir}" || {
         error_log 1 "gather-main $PACKAGE"
-        fancy_message warn "Could not enter into the main directory $target_dir"
+        fancy_message warn "Could not enter into the main directory ${target_dir}"
     }
 }
 
@@ -1171,8 +1172,11 @@ for i in "${!source[@]}"; do
         *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
             genextr_down
             ;;
-        *.appimage | *)
+        *)
             hashcheck_down
+            if [[ -n "${source[1]}" ]]; then
+                gather_down
+            fi
             ;;
     esac
 done
