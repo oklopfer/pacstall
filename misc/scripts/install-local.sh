@@ -1000,11 +1000,10 @@ function clean_fail_down() {
 }
 
 function hashcheck() {
-    local file="${1}"
-    local inputHash="${2}"
+    local inputFile="${1}" inputHash="${2}" fileHash
     [[ "${inputHash}" == "SKIP" ]] && return 0
     # Get hash of file
-    local fileHash="$(sha256sum "${file}")"
+    fileHash="$(sha256sum "${inputFile}")"
     fileHash="${fileHash%% *}"
 
     # Check if the input hash is the same as of the downloaded file.
@@ -1052,6 +1051,7 @@ function git_down() {
     if [[ -n "${source[1]}" ]]; then
         cd ..
         if [[ ${source[*]} == *${file_name}*${file_name}* ]]; then
+            # shellcheck disable=SC2086
             mv "./${file_name%.git}" "./${file_name%.git}~$(<${file_name%.git}/.git/refs/heads/*)"
         fi
         gather_down
