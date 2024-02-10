@@ -141,6 +141,16 @@ function lint_source() {
     if [[ -z $source ]]; then
         fancy_message error "Package does not contain 'source'"
         ret=1
+    elif [[ -n ${source[1]} ]]; then
+        for i in "${!source[@]}"; do
+            local url="${source[$i]}"
+            local file_name="${url##*/}"
+            if [[ ${file_name} == *.deb ]]; then
+                fancy_message error ".deb files can only be provided as a singular 'source'"
+                ret=1
+                break
+            fi
+        done
     fi
     return "${ret}"
 }

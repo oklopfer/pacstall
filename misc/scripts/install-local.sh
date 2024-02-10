@@ -1111,7 +1111,9 @@ function deb_down() {
         fi
         sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
         sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
-        return 0
+        fancy_message info "Cleaning up"
+        cleanup
+        exit 0
     else
         fancy_message error "Failed to install the package"
         error_log 14 "install $PACKAGE"
