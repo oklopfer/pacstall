@@ -1126,7 +1126,7 @@ parse_source_entry() {
 	local entry="$1"
 	if [[ $entry == *::* ]]; then
 		url="${entry#*::}"
-		dest="${entry%%*::}"
+		dest="${entry%%::*}"
 	else
 		url="$entry"
 		dest="${url##*/}"
