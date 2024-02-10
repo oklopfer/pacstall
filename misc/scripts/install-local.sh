@@ -98,9 +98,7 @@ function log() {
         if [[ -n $homepage ]]; then
             echo "_homepage=\"${homepage}"\"
         fi
-        if [[ -z $gives && $name == *-deb ]]; then
-            echo "_gives=\"$(dpkg -f ./"${source##*/[0]}" | sed -n "s/^Package: //p")"\"
-        elif [[ -n $gives ]]; then
+        if [[ -n $gives ]]; then
             echo "_gives=\"$gives"\"
         fi
         if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
