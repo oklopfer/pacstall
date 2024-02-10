@@ -1026,9 +1026,7 @@ function fail_down() {
 function gather_down() {
     local target_name="${PACKAGE}~${pkgver}"
     local target_dir="${SRCDIR}/${target_name}"
-    if [[ ! -d "${target_dir}" ]]; then
-        mkdir -p "${target_dir}"
-    fi
+    mkdir -p "${target_dir}"
     if ! [[ "${PWD}" == "${target_dir}" ]]; then
         find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
         cd "${target_dir}" || {
@@ -1039,10 +1037,11 @@ function gather_down() {
 }
 
 function git_down() {
+	dest="${dest%.git}"
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url"
+    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url" "$dest"
     # cd into the directory
-    cd "./${file_name%.git}" 2> /dev/null || {
+    cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
         fancy_message warn "Could not enter into the cloned git repository"
     }
@@ -1050,26 +1049,26 @@ function git_down() {
     git fsck --full || return 1
     if [[ -n "${source[1]}" ]]; then
         cd ..
-        if [[ ${source[*]} == *${file_name}*${file_name}* ]]; then
+        if [[ ${source[*]} == *${dest}*${dest}* ]]; then
             # shellcheck disable=SC2086
-            mv "./${file_name%.git}" "./${file_name%.git}~$(<${file_name%.git}/.git/refs/heads/*)"
+            mv "./${dest}" "./${dest}~$(<${dest}/.git/refs/heads/*)"
         fi
         gather_down
     fi
 }
 
 function hashcheck_down() {
-    download "$url" || fail_down
-    hashcheck "${file_name}" "${expectedHash}" || return 1
+    download "$url" "$dest" || fail_down
+    hashcheck "${dest}" "${expectedHash}" || return 1
 }
 
 function genextr_down() {
     genextr_declare
     hashcheck_down
-    fancy_message info "Extracting ${file_name}"
-    ${ext_method} "${file_name}" 1>&1 2> /dev/null
-    if [[ -f "${file_name}" ]]; then
-        rm -f "${file_name}"
+    fancy_message info "Extracting ${dest}"
+    ${ext_method} "${dest}" 1>&1 2> /dev/null
+    if [[ -f "${dest}" ]]; then
+        rm -f "${dest}"
     fi
     if [[ -z "${source[1]}" ]]; then
         cd ./*/ 2> /dev/null || {
@@ -1090,7 +1089,7 @@ function deb_down() {
             exit 1
         fi
     fi
-    if sudo apt install -y -f ./"${file_name}" 2> /dev/null; then
+    if sudo apt install -y -f ./"${dest}" 2> /dev/null; then
         log
         if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
             sudo apt-mark auto "${gives:-$name}" 2> /dev/null
@@ -1122,8 +1121,20 @@ function deb_down() {
     fi
 }
 
+parse_source_entry() {
+	unset url dest
+	local entry="$1"
+	if [[ $entry == *::* ]]; then
+		url="${entry#*::}"
+		dest="${entry%%*::}"
+	else
+		url="$entry"
+		dest="${url##*/}"
+	fi
+}
+
 for i in "${!source[@]}"; do
-    url="${source[$i]}"
+	parse_source_entry "${source[$i]}"
     genextr_declare
 done
 install_builddepends
@@ -1148,12 +1159,10 @@ fi
 mkdir -p "${SRCDIR}"
 
 for i in "${!source[@]}"; do
-    url="${source[$i]}"
+	parse_source_entry "${source[$i]}"
     expectedHash="${hash[$i]}"
     if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
-        file_name="${PACSTALL_PAYLOAD##*/}"
-    else
-        file_name="${url##*/}"
+        dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
         *.git)
