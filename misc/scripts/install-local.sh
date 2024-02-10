@@ -1132,7 +1132,7 @@ parse_source_entry() {
 }
 
 for i in "${!source[@]}"; do
-	parse_source_entry "${source[$i]}"
+    parse_source_entry "${source[$i]}"
     genextr_declare
 done
 install_builddepends
@@ -1157,7 +1157,7 @@ fi
 mkdir -p "${SRCDIR}"
 
 for i in "${!source[@]}"; do
-	parse_source_entry "${source[$i]}"
+    parse_source_entry "${source[$i]}"
     expectedHash="${hash[$i]}"
     if [[ -n $PACSTALL_PAYLOAD && ! -f "/tmp/pacstall-pacdeps-$PACKAGE" ]]; then
         dest="${PACSTALL_PAYLOAD##*/}"
