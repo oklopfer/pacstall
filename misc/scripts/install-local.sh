@@ -1035,14 +1035,33 @@ function gather_down() {
 }
 
 function git_down() {
+    local revision gitopts
 	dest="${dest%.git}"
+    if [[ -n ${git_branch} || -n ${git_tag} ]]; then
+        if [[ -n ${git_branch} ]]; then
+            revision="${git_branch}"
+        elif [[ -n ${git_tag} ]]; then
+            revision="${git_tag}"
+        fi
+        gitopts="--recurse-submodules -b ${revision}"
+    elif [[ -n ${git_commit} ]]; then
+        gitopts="--filter=blob:none --no-checkout"
+    else
+        gitopts="--recurse-submodules"
+    fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url" "$dest"
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" "${gitopts}"
     # cd into the directory
     cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
         fancy_message warn "Could not enter into the cloned git repository"
     }
+    if [[ -n ${git_commit} ]]; then
+        fancy_message info "Fetching commit ${git_commit}"
+        git fetch --quiet origin "${git_commit}" &> /dev/null
+        git checkout --quiet --force "${git_commit}"
+        git submodule update --init --recursive
+    fi
     # Check the integrity
     git fsck --full || return 1
     if [[ -n "${source[1]}" ]]; then
@@ -1120,15 +1139,27 @@ function deb_down() {
 }
 
 parse_source_entry() {
-	unset url dest
-	local entry="$1"
-	if [[ $entry == *::* ]]; then
-		url="${entry#*::}"
-		dest="${entry%%::*}"
-	else
-		url="$entry"
-		dest="${url##*/}"
-	fi
+    unset url dest git_branch git_tag git_commit
+    local entry="$1"
+    if [[ $entry == *::* ]]; then
+        url="${entry#*::}"
+        dest="${entry%%::*}"
+        case $url in
+            *#branch=*)
+                git_branch="${url##*#branch=}"
+                url="${url%%#branch=*}" ;;
+            *#tag=*)
+                git_tag="${url##*#tag=}"
+                url="${url%%#tag=*}" ;;
+            *#commit=*)
+                git_commit="${url##*#commit=}"
+                url="${url%%#commit=*}" ;;
+        esac
+        url="${url%%#*}"
+    else
+        url="$entry"
+        dest="${url##*/}"
+    fi
 }
 
 for i in "${!source[@]}"; do
