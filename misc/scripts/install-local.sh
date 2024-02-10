@@ -49,7 +49,7 @@ function cleanup() {
     fi
     sudo rm -rf "${STOWDIR}/${name:-$PACKAGE}.deb"
     rm -f /tmp/pacstall-select-options
-    unset name repology pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
+    unset name repology pkgver git_pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
     unset -f pkgver post_install post_remove pre_install prepare build package 2> /dev/null
     sudo rm -f "${pacfile}"
 }
@@ -123,6 +123,56 @@ function log() {
     } | sudo tee "$METADIR/$name" > /dev/null
 }
 
+parse_source_entry() {
+    unset url dest git_branch git_tag git_commit
+    local entry="$1"
+    url="${entry#*::}"
+    dest="${entry%%::*}"
+    if [[ $entry != *::* && $entry == *#*=* ]]; then
+        dest="${url%%#*}"
+        dest="${dest##*/}"
+    fi
+    case $url in
+        *#branch=*)
+            git_branch="${url##*#branch=}"
+            url="${url%%#branch=*}"
+            ;;
+        *#tag=*)
+            git_tag="${url##*#tag=}"
+            url="${url%%#tag=*}"
+            ;;
+        *#commit=*)
+            git_commit="${url##*#commit=}"
+            url="${url%%#commit=*}"
+            ;;
+    esac
+    url="${url%%#*}"
+    if [[ $entry == *::* ]]; then
+        dest="${entry%%::*}"
+    elif [[ $entry != *#*=* ]]; then
+        url="$entry"
+        dest="${url##*/}"
+    fi
+}
+
+function calc_git_pkgver() {
+    unset comp_git_pkgver
+    local calc_commit
+    if [[ $url == git+* ]]; then
+        url="${url#git+}"
+    fi
+    if [[ -n ${git_branch} ]]; then
+        calc_commit="git ls-remote ${url} ${git_branch}"
+    elif [[ -n ${git_tag} ]]; then
+        calc_commit="git ls-remote ${url} ${git_tag}"
+    elif [[ -n ${git_commit} ]]; then
+        calc_commit="echo ${git_commit}"
+    else
+        calc_commit="git ls-remote ${url} HEAD"
+    fi
+    comp_git_pkgver="$(${calc_commit} | cut -f1 | cut -c1-8)"
+}
+
 function compare_remote_version() (
     local input="${1}"
     unset -f pkgver 2> /dev/null
@@ -137,8 +187,10 @@ function compare_remote_version() (
         local remoterepo="${_remoterepo}"
     fi
     local remotever="$(
-        source <(curl -s -- "$remoterepo/packages/$input/$input.pacscript") && if is_function pkgver; then
-            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git$(pkgver)"
+        source <(curl -s -- "$remoterepo/packages/$input/$input.pacscript") && if [[ ${name} == *-git ]]; then
+            parse_source_entry "${source[0]}"
+            calc_git_pkgver
+            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${comp_git_pkgver}"
         elif [[ ${name} == *-deb ]]; then
             echo "${epoch+$epoch:}${pkgver}"
         else
@@ -258,13 +310,13 @@ function is_compatible_arch() {
     elif [[ -n ${FARCH[*]} ]]; then
         for pacarch in "${input[@]}"; do
             for farch in "${FARCH[@]}"; do
-                if [[ "${pacarch}" == "${farch}" ]]; then
+                if [[ ${pacarch} == "${farch}" ]]; then
                     fancy_message warn "This package is for ${BBlue}${farch}${NC}, which is a foreign architecture"
                     ret=0
                     break
                 fi
             done
-            if ((ret==0)); then
+            if ((ret == 0)); then
                 break
             fi
         done
@@ -806,8 +858,12 @@ if [[ -n ${priority} && ${priority} == 'essential' ]] && ! is_package_installed 
     fi
 fi
 
-if is_function pkgver; then
-    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git$(pkgver)"
+if [[ ${name} == *-git ]]; then
+    parse_source_entry "${source[0]}"
+    calc_git_pkgver
+    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${comp_git_pkgver}"
+    git_pkgver="${comp_git_pkgver}"
+    export git_pkgver
 elif [[ ${name} == *-deb ]]; then
     full_version="${epoch+$epoch:}${pkgver}"
 else
@@ -986,7 +1042,7 @@ function genextr_declare() {
             ext_dep="tar"
             ;;
     esac
-    if [[ -n "${ext_dep}" && ! ${makedepends[*]} == *${ext_dep}* ]]; then
+    if [[ -n ${ext_dep} && ${makedepends[*]} != *${ext_dep}* ]]; then
         makedepends+=("${ext_dep}")
     fi
 }
@@ -999,7 +1055,7 @@ function clean_fail_down() {
 
 function hashcheck() {
     local inputFile="${1}" inputHash="${2}" fileHash
-    [[ "${inputHash}" == "SKIP" ]] && return 0
+    [[ ${inputHash} == "SKIP" ]] && return 0
     # Get hash of file
     fileHash="$(sha256sum "${inputFile}")"
     fileHash="${fileHash%% *}"
@@ -1025,7 +1081,7 @@ function gather_down() {
     local target_name="${PACKAGE}~${pkgver}"
     local target_dir="${SRCDIR}/${target_name}"
     mkdir -p "${target_dir}"
-    if ! [[ "${PWD}" == "${target_dir}" ]]; then
+    if ! [[ ${PWD} == "${target_dir}" ]]; then
         find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
         cd "${target_dir}" || {
             error_log 1 "gather-main $PACKAGE"
@@ -1035,28 +1091,55 @@ function gather_down() {
 }
 
 function git_down() {
-	dest="${dest%.git}"
+    local revision gitopts
+    dest="${dest%.git}"
+    if [[ -n ${git_branch} || -n ${git_tag} ]]; then
+        if [[ -n ${git_branch} ]]; then
+            revision="${git_branch}"
+            fancy_message info "Cloning ${BPurple}${dest}${NC} from branch ${CYAN}${git_branch}${NC}"
+        elif [[ -n ${git_tag} ]]; then
+            revision="${git_tag}"
+            fancy_message info "Cloning ${BPurple}${dest}${NC} from tag ${CYAN}${git_tag}${NC}"
+        fi
+        gitopts="--recurse-submodules -b ${revision}"
+    elif [[ -n ${git_commit} ]]; then
+        gitopts="--no-checkout --filter=blob:none"
+        fancy_message info "Cloning ${BPurple}${dest}${NC} with no blobs"
+    else
+        gitopts="--recurse-submodules"
+        fancy_message info "Cloning ${BPurple}${dest}${NC} from ${CYAN}HEAD${NC}"
+    fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --recurse-submodules --jobs=10 "$url" "$dest"
+    # shellcheck disable=SC2086
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null || fail_down
     # cd into the directory
     cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
         fancy_message warn "Could not enter into the cloned git repository"
     }
+    if [[ -n ${git_commit} ]]; then
+        fancy_message sub "Fetching commit ${CYAN}${git_commit:0:8}${NC}"
+        git fetch --quiet origin "${git_commit}" &> /dev/null || fail_down
+        git checkout --quiet --force "${git_commit}" &> /dev/null || fail_down
+        git submodule update --init --recursive
+    fi
     # Check the integrity
-    git fsck --full || return 1
-    if [[ -n "${source[1]}" ]]; then
+    calc_git_pkgver
+    fancy_message sub "Checking integrity of ${YELLOW}${comp_git_pkgver}${NC}"
+    git fsck --full --no-progress --no-verbose || fancy_message warn "Could not check integrity of cloned git repository"
+    if [[ -n ${source[1]} ]]; then
         cd ..
-        if [[ ${source[*]} == *${dest}*${dest}* ]]; then
-            # shellcheck disable=SC2086
-            mv "./${dest}" "./${dest}~$(<${dest}/.git/refs/heads/*)"
+        if [[ ${source[*]} == *${dest}.git*${dest}.git* ]]; then
+            mv "./${dest}" "./${dest}~${comp_git_pkgver}"
         fi
         gather_down
     fi
 }
 
 function hashcheck_down() {
+    fancy_message info "Downloading ${BPurple}${dest}${NC}"
     download "$url" "$dest" || fail_down
+    fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
     hashcheck "${dest}" "${expectedHash}" || return 1
 }
 
@@ -1065,10 +1148,10 @@ function genextr_down() {
     hashcheck_down
     fancy_message info "Extracting ${dest}"
     ${ext_method} "${dest}" 1>&1 2> /dev/null
-    if [[ -f "${dest}" ]]; then
+    if [[ -f ${dest} ]]; then
         rm -f "${dest}"
     fi
-    if [[ -z "${source[1]}" ]]; then
+    if [[ -z ${source[1]} ]]; then
         cd ./*/ 2> /dev/null || {
             error_log 1 "install $PACKAGE"
             fancy_message warn "Could not enter into the downloaded archive"
@@ -1119,18 +1202,6 @@ function deb_down() {
     fi
 }
 
-parse_source_entry() {
-	unset url dest
-	local entry="$1"
-	if [[ $entry == *::* ]]; then
-		url="${entry#*::}"
-		dest="${entry%%::*}"
-	else
-		url="$entry"
-		dest="${url##*/}"
-	fi
-}
-
 for i in "${!source[@]}"; do
     parse_source_entry "${source[$i]}"
     genextr_declare
@@ -1163,7 +1234,10 @@ for i in "${!source[@]}"; do
         dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
-        *.git)
+        *.git | git+* )
+            if [[ $url == git+* ]]; then
+                url="${url#git+}"
+            fi
             git_down
             ;;
         *.deb)
@@ -1174,7 +1248,7 @@ for i in "${!source[@]}"; do
             ;;
         *)
             hashcheck_down
-            if [[ -n "${source[1]}" ]]; then
+            if [[ -n ${source[1]} ]]; then
                 gather_down
             fi
             ;;
