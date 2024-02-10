@@ -1040,24 +1040,28 @@ function git_down() {
     if [[ -n ${git_branch} || -n ${git_tag} ]]; then
         if [[ -n ${git_branch} ]]; then
             revision="${git_branch}"
+            fancy_message info "Cloning ${dest} from branch"
         elif [[ -n ${git_tag} ]]; then
             revision="${git_tag}"
+            fancy_message info "Cloning ${dest} from tag"
         fi
         gitopts="--recurse-submodules -b ${revision}"
     elif [[ -n ${git_commit} ]]; then
-        gitopts="--filter=blob:none --no-checkout"
+        gitopts=" --no-checkout --filter=blob:none"
+        fancy_message info "Cloning ${dest} with no blobs"
     else
         gitopts="--recurse-submodules"
+        fancy_message info "Cloning ${dest}"
     fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" "${gitopts}"
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts}
     # cd into the directory
     cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
         fancy_message warn "Could not enter into the cloned git repository"
     }
     if [[ -n ${git_commit} ]]; then
-        fancy_message info "Fetching commit ${git_commit}"
+        fancy_message info "Fetching ${dest} from commit"
         git fetch --quiet origin "${git_commit}" &> /dev/null
         git checkout --quiet --force "${git_commit}"
         git submodule update --init --recursive
@@ -1141,7 +1145,7 @@ function deb_down() {
 parse_source_entry() {
     unset url dest git_branch git_tag git_commit
     local entry="$1"
-    if [[ $entry == *::* ]]; then
+    if [[ $entry == *::* || $entry == *#*=* ]]; then
         url="${entry#*::}"
         dest="${entry%%::*}"
         case $url in
