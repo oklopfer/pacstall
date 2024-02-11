@@ -151,13 +151,16 @@ function lint_source_deb_test() {
 }
 
 function lint_source() {
-    local ret=0 test_source has_source=0 known_archs=()
-    mapfile -t known_archs < <(dpkg-architecture --list-known)
+    local ret=0 test_source has_source=0 known_archs_source=()
+    mapfile -t known_archs_source < <(dpkg-architecture --list-known)
+    for i in "${!known_archs_source[@]}"; do
+        known_archs_source[$i]=${known_archs_source[$i]//-/_}
+    done
     if [[ -n ${source[0]} ]]; then
         has_source=1
     else
-        for arch in "${known_archs[@]}"; do
-            local source_arch="source_${arch}[@]"
+        for sarch in "${known_archs_source[@]}"; do
+            local source_arch="source_${sarch}[@]"
             if [[ -n ${!source_arch} ]]; then
                 has_source=1
                 break
@@ -168,8 +171,8 @@ function lint_source() {
         fancy_message error "Package does not contain 'source'"
         ret=1
     else
-        for arch in "${known_archs[@]}"; do
-            local source_arch="source_${arch}[@]"
+        for sarch in "${known_archs_source[@]}"; do
+            local source_arch="source_${sarch}[@]"
             if [[ -n ${!source_arch} ]]; then
                 test_source=()
                 if [[ -n ${source[0]} ]]; then
@@ -330,14 +333,17 @@ function lint_replace() {
 }
 
 function lint_hash() {
-    local ret=0 test_hash known_archs=()
-    mapfile -t known_archs < <(dpkg-architecture --list-known)
+    local ret=0 test_hash known_archs_hash=()
+    mapfile -t known_archs_hash < <(dpkg-architecture --list-known)
+    for i in "${!known_archs_hash[@]}"; do
+        known_archs_hash[$i]=${known_archs_hash[$i]//-/_}
+    done
     if [[ -n ${hash} ]]; then
         # shellcheck disable=SC2206
         test_hash+=(${hash[*]})
     fi
-    for arch in "${known_archs[@]}"; do
-        local hash_arch="hash_${arch}[*]"
+    for harch in "${known_archs_hash[@]}"; do
+        local hash_arch="hash_${harch}[*]"
         if [[ -n ${!hash_arch} ]]; then
             # shellcheck disable=SC2206
             test_hash+=(${!hash_arch})
