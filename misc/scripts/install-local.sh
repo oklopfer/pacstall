@@ -49,7 +49,7 @@ function cleanup() {
     fi
     sudo rm -rf "${STOWDIR}/${name:-$PACKAGE}.deb"
     rm -f /tmp/pacstall-select-options
-    unset name repology pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
+    unset name repology pkgver git_pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
     unset -f pkgver post_install post_remove pre_install prepare build package 2> /dev/null
     sudo rm -f "${pacfile}"
 }
@@ -156,7 +156,7 @@ parse_source_entry() {
 }
 
 function calc_git_pkgver() {
-    unset git_pkgver
+    unset comp_git_pkgver
     local calc_commit
     if [[ -n ${git_branch} ]]; then
         calc_commit="git ls-remote ${url} ${git_branch}"
@@ -167,7 +167,7 @@ function calc_git_pkgver() {
     else
         calc_commit="git ls-remote ${url} HEAD"
     fi
-    git_pkgver="$(${calc_commit} | cut -f1 | cut -c1-8)"
+    comp_git_pkgver="$(${calc_commit} | cut -f1 | cut -c1-8)"
 }
 
 function compare_remote_version() (
@@ -187,7 +187,7 @@ function compare_remote_version() (
         source <(curl -s -- "$remoterepo/packages/$input/$input.pacscript") && if [[ ${name} == *-git ]]; then
             parse_source_entry "${source[0]}"
             calc_git_pkgver
-            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${git_pkgver}"
+            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${comp_git_pkgver}"
         elif [[ ${name} == *-deb ]]; then
             echo "${epoch+$epoch:}${pkgver}"
         else
@@ -858,7 +858,9 @@ fi
 if [[ ${name} == *-git ]]; then
     parse_source_entry "${source[0]}"
     calc_git_pkgver
-    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${git_pkgver}"
+    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${comp_git_pkgver}"
+    git_pkgver="${comp_git_pkgver}"
+    export git_pkgver
 elif [[ ${name} == *-deb ]]; then
     full_version="${epoch+$epoch:}${pkgver}"
 else
@@ -1106,7 +1108,7 @@ function git_down() {
         fancy_message info "Cloning ${dest} from HEAD"
     fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts}
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null
     # cd into the directory
     cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
@@ -1119,12 +1121,13 @@ function git_down() {
         git submodule update --init --recursive
     fi
     # Check the integrity
-    git fsck --full || return 1
+    fancy_message info "Checking integrity"
+    git fsck --full --quiet || return 1
     if [[ -n ${source[1]} ]]; then
         cd ..
         if [[ ${source[*]} == *${dest}*${dest}* ]]; then
-            # shellcheck disable=SC2086
-            mv "./${dest}" "./${dest}~$(< ${dest}/.git/refs/heads/*)"
+            calc_git_pkgver
+            mv "./${dest}" "./${dest}~${comp_git_pkgver}"
         fi
         gather_down
     fi
