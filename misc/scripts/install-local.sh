@@ -1142,8 +1142,10 @@ function git_down() {
 function hashcheck_down() {
     fancy_message info "Downloading ${BPurple}${dest}${NC}"
     download "$url" "$dest" || fail_down
-    fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
-    hashcheck "${dest}" "${expectedHash}" || return 1
+    if [[ -n "${expectedHash}" ]]; then
+        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
+        hashcheck "${dest}" "${expectedHash}" || return 1
+    fi
 }
 
 function genextr_down() {
@@ -1205,6 +1207,18 @@ function deb_down() {
     fi
 }
 
+function file_down() {
+    fancy_message info "Copying local archive ${BPurple}${dest}${NC}"
+    cp -r "${url}" "${dest}" || fail_down
+    if [[ -n "${expectedHash}" ]]; then
+      fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
+      hashcheck "${dest}" "${expectedHash}" || return 1
+    fi
+    if [[ -n ${source[1]} ]]; then
+        gather_down
+    fi
+}
+
 function append_arch_entry() {
     local source_arch hash_arch
     source_arch="source_${CARCH}[*]"
@@ -1252,6 +1266,11 @@ for i in "${!source[@]}"; do
         dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
+        *file://* )
+            url="${url#file://}"
+            url="${url#git+}"
+            file_down
+            ;;
         *.git | git+* )
             if [[ $url == git+* ]]; then
                 url="${url#git+}"

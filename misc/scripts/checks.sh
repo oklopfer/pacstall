@@ -151,7 +151,8 @@ function lint_source_deb_test() {
 }
 
 function lint_source() {
-    local ret=0 test_source has_source=0 known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
+    local ret=0 test_source has_source=0 known_archs=()
+    mapfile -t known_archs < <(dpkg-architecture --list-known)
     if [[ -n ${source[0]} ]]; then
         has_source=1
     else
@@ -329,7 +330,8 @@ function lint_replace() {
 }
 
 function lint_hash() {
-    local ret=0 test_hash known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
+    local ret=0 test_hash known_archs=()
+    mapfile -t known_archs < <(dpkg-architecture --list-known)
     if [[ -n ${hash} ]]; then
         # shellcheck disable=SC2206
         test_hash+=(${hash[*]})
