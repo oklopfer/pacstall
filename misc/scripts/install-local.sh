@@ -123,6 +123,48 @@ function log() {
     } | sudo tee "$METADIR/$name" > /dev/null
 }
 
+parse_source_entry() {
+    unset url dest git_branch git_tag git_commit
+    local entry="$1"
+    if [[ $entry == *::* || $entry == *#*=* ]]; then
+        url="${entry#*::}"
+        dest="${entry%%::*}"
+        case $url in
+            *#branch=*)
+                git_branch="${url##*#branch=}"
+                url="${url%%#branch=*}"
+            ;;
+            *#tag=*)
+                git_tag="${url##*#tag=}"
+                url="${url%%#tag=*}"
+            ;;
+            *#commit=*)
+                git_commit="${url##*#commit=}"
+                url="${url%%#commit=*}"
+            ;;
+        esac
+        url="${url%%#*}"
+    else
+        url="$entry"
+        dest="${url##*/}"
+    fi
+}
+
+function calc_git_pkgver() {
+    unset git_pkgver
+    local calc_commit
+    if [[ -n ${git_branch} ]]; then
+        calc_commit="git ls-remote ${url} ${git_branch}"
+    elif [[ -n ${git_tag} ]]; then
+        calc_commit="git ls-remote ${url} ${git_tag}"
+    elif [[ -n ${git_commit} ]]; then
+        calc_commit="echo ${git_commit}"
+    else
+        calc_commit="git ls-remote ${url} HEAD"
+    fi
+    git_pkgver="$(${calc_commit} | cut -f1 | cut -c1-8)"
+}
+
 function compare_remote_version() (
     local input="${1}"
     unset -f pkgver 2> /dev/null
@@ -137,8 +179,10 @@ function compare_remote_version() (
         local remoterepo="${_remoterepo}"
     fi
     local remotever="$(
-        source <(curl -s -- "$remoterepo/packages/$input/$input.pacscript") && if is_function pkgver; then
-            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git$(pkgver)"
+        source <(curl -s -- "$remoterepo/packages/$input/$input.pacscript") && if [[ ${name} == *-git ]]; then
+            parse_source_entry "${source[0]}"
+            calc_git_pkgver
+            echo "${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${git_pkgver}"
         elif [[ ${name} == *-deb ]]; then
             echo "${epoch+$epoch:}${pkgver}"
         else
@@ -806,8 +850,10 @@ if [[ -n ${priority} && ${priority} == 'essential' ]] && ! is_package_installed 
     fi
 fi
 
-if is_function pkgver; then
-    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git$(pkgver)"
+if [[ ${name} == *-git ]]; then
+    parse_source_entry "${source[0]}"
+    calc_git_pkgver
+    full_version="${epoch+$epoch:}${pkgver}-pacstall${pkgrel:-1}~git${git_pkgver}"
 elif [[ ${name} == *-deb ]]; then
     full_version="${epoch+$epoch:}${pkgver}"
 else
@@ -1139,30 +1185,6 @@ function deb_down() {
         error_log 14 "install $PACKAGE"
         sudo apt purge "${gives:-$name}" -y > /dev/null
         clean_fail_down
-    fi
-}
-
-parse_source_entry() {
-    unset url dest git_branch git_tag git_commit
-    local entry="$1"
-    if [[ $entry == *::* || $entry == *#*=* ]]; then
-        url="${entry#*::}"
-        dest="${entry%%::*}"
-        case $url in
-            *#branch=*)
-                git_branch="${url##*#branch=}"
-                url="${url%%#branch=*}" ;;
-            *#tag=*)
-                git_tag="${url##*#tag=}"
-                url="${url%%#tag=*}" ;;
-            *#commit=*)
-                git_commit="${url##*#commit=}"
-                url="${url%%#commit=*}" ;;
-        esac
-        url="${url%%#*}"
-    else
-        url="$entry"
-        dest="${url##*/}"
     fi
 }
 
