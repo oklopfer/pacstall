@@ -1115,14 +1115,14 @@ function git_down() {
         fancy_message warn "Could not enter into the cloned git repository"
     }
     if [[ -n ${git_commit} ]]; then
-        fancy_message info "Fetching commit ${commit_cut}"
+        fancy_message sub "Fetching commit ${commit_cut}"
         git fetch --quiet origin "${git_commit}" &> /dev/null
         git checkout --quiet --force "${git_commit}" &> /dev/null
         git submodule update --init --recursive
     fi
     # Check the integrity
     calc_git_pkgver
-    fancy_message info "Checking integrity of ${comp_git_pkgver}"
+    fancy_message sub "Checking integrity of ${comp_git_pkgver}"
     git fsck --full --no-progress --no-verbose || return 1
     if [[ -n ${source[1]} ]]; then
         cd ..
