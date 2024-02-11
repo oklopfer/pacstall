@@ -1117,16 +1117,16 @@ function git_down() {
     if [[ -n ${git_commit} ]]; then
         fancy_message info "Fetching commit ${commit_cut}"
         git fetch --quiet origin "${git_commit}" &> /dev/null
-        git checkout --quiet --force "${git_commit}"
+        git checkout --quiet --force "${git_commit}" &> /dev/null
         git submodule update --init --recursive
     fi
     # Check the integrity
-    fancy_message info "Checking integrity"
-    git fsck --full --quiet || return 1
+    calc_git_pkgver
+    fancy_message info "Checking integrity of ${comp_git_pkgver}"
+    git fsck --full --no-progress --no-verbose || return 1
     if [[ -n ${source[1]} ]]; then
         cd ..
         if [[ ${source[*]} == *${dest}*${dest}* ]]; then
-            calc_git_pkgver
             mv "./${dest}" "./${dest}~${comp_git_pkgver}"
         fi
         gather_down
