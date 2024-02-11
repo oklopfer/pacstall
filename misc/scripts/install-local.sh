@@ -1153,7 +1153,7 @@ function hashcheck_down() {
     fancy_message info "Downloading ${BPurple}${dest}${NC}"
     download "$url" "$dest" || fail_down
     if [[ -n "${expectedHash}" ]]; then
-        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
+        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}[${YELLOW}...${NC}]"
         hashcheck "${dest}" "${expectedHash}" || return 1
     fi
 }
