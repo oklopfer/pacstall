@@ -1146,7 +1146,7 @@ function hashcheck_down() {
 function genextr_down() {
     genextr_declare
     hashcheck_down
-    fancy_message info "Extracting ${CYAN}${dest}${NC}"
+    fancy_message sub "Extracting ${CYAN}${dest}${NC}"
     ${ext_method} "${dest}" 1>&1 2> /dev/null
     if [[ -f ${dest} ]]; then
         rm -f "${dest}"
