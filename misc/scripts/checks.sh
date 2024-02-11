@@ -327,18 +327,23 @@ function lint_replace() {
 }
 
 function lint_hash() {
-    local ret=0 known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
-    for arch in "${known_archs[@]}"; do
-            local hash_arch="hash_${arch}[@]"
-            if [[ -n ${!hash_arch} ]]; then
-                hash+=("${!hash_arch}")
-            fi
-        done
+    local ret=0 test_hash known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
     if [[ -n ${hash} ]]; then
-        for i in "${!hash[@]}"; do
-            if [[ ${hash[i]} == "SKIP" ]]; then
+        # shellcheck disable=SC2206
+        test_hash+=(${hash[*]})
+    fi
+    for arch in "${known_archs[@]}"; do
+        local hash_arch="hash_${arch}[*]"
+        if [[ -n ${!hash_arch} ]]; then
+            # shellcheck disable=SC2206
+            test_hash+=(${!hash_arch})
+        fi
+    done
+    if [[ -n ${test_hash} ]]; then
+        for i in ${!test_hash[*]}; do
+            if [[ ${test_hash[i]} == "SKIP" ]]; then
                 ret=0
-            elif ((${#hash[i]} != 64)); then
+            elif ((${#test_hash[i]} != 64)); then
                 fancy_message error "'hash' is improperly formatted"
                 ret=1
             fi
