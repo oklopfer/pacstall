@@ -113,17 +113,7 @@ function lint_epoch() {
 
 function lint_version() {
     local ret=0 lint_pkgver
-    if is_function pkgver; then
-        if [[ -z $pkgver ]]; then
-            fancy_message error "Package contains 'pkgver()' but not the variable as well"
-            ret=1
-        fi
-        lint_pkgver="$(pkgver)"
-        if [[ -z ${lint_pkgver} ]]; then
-            fancy_message error "'pkgver()' has no output"
-            ret=1
-        fi
-    elif [[ -n $pkgver ]]; then
+    if [[ -n $pkgver ]]; then
         # https://www.debian.org/doc/debian-policy/ch-controlfields.html#version
         if [[ ! $pkgver =~ ^[0-9][a-zA-Z0-9.+-~]+$ ]]; then
             fancy_message error "'pkgver' must contain only alphanumerics and the characters . + - ~ and should start with a digit"
