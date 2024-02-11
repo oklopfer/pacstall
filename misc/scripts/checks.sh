@@ -172,9 +172,11 @@ function lint_source() {
             if [[ -n ${!source_arch} ]]; then
                 test_source=()
                 if [[ -n ${source[0]} ]]; then
-                  test_source+=("${source[*]}")
+                  # shellcheck disable=SC2206
+                  test_source+=(${source[*]})
                 fi
-                test_source+=("${!source_arch}")
+                # shellcheck disable=SC2206
+                test_source+=(${!source_arch})
                 if [[ -n ${test_source[1]} ]]; then
                     lint_source_deb_test "${test_source[*]}"
                     if ((ret == 1)); then
