@@ -1210,9 +1210,11 @@ function append_arch_entry() {
     source_arch="source_${CARCH}[*]"
     hash_arch="hash_${CARCH}[*]"
     if [[ -n ${!source_arch} ]]; then
+        # shellcheck disable=SC2206
         source+=(${!source_arch})
     fi
     if [[ -n ${!hash_arch} ]]; then
+        # shellcheck disable=SC2206
         hash+=(${!hash_arch})
     fi
 }

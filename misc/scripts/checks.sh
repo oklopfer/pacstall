@@ -137,6 +137,7 @@ function lint_version() {
 }
 
 function lint_source_deb_test() {
+    # shellcheck disable=SC2206
     local input_source=($1)
     for i in "${!input_source[@]}"; do
         local url="${input_source[$i]}"
@@ -144,7 +145,6 @@ function lint_source_deb_test() {
         if [[ ${file_name} == *.deb ]]; then
             fancy_message error ".deb files can only be provided as a singular 'source'"
             ret=1
-            return "${ret}"
             break
         fi
     done
@@ -163,7 +163,7 @@ function lint_source() {
             fi
         done
     fi
-    if (($has_source == 0)); then
+    if ((has_source == 0)); then
         fancy_message error "Package does not contain 'source'"
         ret=1
     else
@@ -177,8 +177,7 @@ function lint_source() {
                 test_source+=("${!source_arch}")
                 if [[ -n ${test_source[1]} ]]; then
                     lint_source_deb_test "${test_source[*]}"
-                    if (($? != 0)); then
-                        ret=1
+                    if ((ret == 1)); then
                         break
                     fi
                 fi
