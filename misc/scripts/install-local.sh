@@ -548,7 +548,16 @@ function makedeb() {
     fi
 
     if [[ $name == *-git ]]; then
-        deblog "Vcs-Git" "${source[0]}"
+        parse_source_entry "${source[0]}"
+        url="${url#file://}"
+        url="${url#git+}"
+        if [[ -n ${git_branch} ]]; then
+            deblog "Vcs-Git" "${url} -b ${git_branch}"
+        elif [[ -n ${git_tag} ]]; then
+            deblog "Vcs-Git" "${url} -b ${git_tag}"
+        else
+          deblog "Vcs-Git" "${url}"
+        fi
     fi
 
     if [[ -n ${makedepends[*]} ]]; then
