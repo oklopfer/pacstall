@@ -49,7 +49,7 @@ function cleanup() {
     fi
     sudo rm -rf "${STOWDIR}/${name:-$PACKAGE}.deb"
     rm -f /tmp/pacstall-select-options
-    unset name repology pkgver git_pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
+    unset name repology pkgver git_pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority noextract 2> /dev/null
     unset -f pkgver post_install post_remove pre_install prepare build package 2> /dev/null
     sudo rm -f "${pacfile}"
 }
@@ -1160,7 +1160,14 @@ function hashcheck_down() {
 function genextr_down() {
     genextr_declare
     hashcheck_down
-    if ! [[ ${no_extract[*]} == *${dest}* ]]; then
+    local extract=true
+    for keep_archive in "${noextract[@]}"; do
+        if [[ ${keep_archive} == "${dest}" ]]; then
+            extract=false
+            break
+        fi
+    done
+    if ${extract}; then
         fancy_message sub "Extracting ${CYAN}${dest}${NC}"
         ${ext_method} "${dest}" 1>&1 2> /dev/null
         if [[ -f ${dest} ]]; then
