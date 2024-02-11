@@ -136,21 +136,58 @@ function lint_version() {
     return "${ret}"
 }
 
+function lint_source_deb_test() {
+    # shellcheck disable=SC2206
+    local input_source=($1)
+    for i in "${!input_source[@]}"; do
+        local url="${input_source[$i]}"
+        local file_name="${url##*/}"
+        if [[ ${file_name} == *.deb ]]; then
+            fancy_message error ".deb files can only be provided as a singular 'source'"
+            ret=1
+            break
+        fi
+    done
+}
+
 function lint_source() {
-    local ret=0
-    if [[ -z $source ]]; then
-        fancy_message error "Package does not contain 'source'"
-        ret=1
-    elif [[ -n ${source[1]} ]]; then
-        for i in "${!source[@]}"; do
-            local url="${source[$i]}"
-            local file_name="${url##*/}"
-            if [[ ${file_name} == *.deb ]]; then
-                fancy_message error ".deb files can only be provided as a singular 'source'"
-                ret=1
+    local ret=0 test_source has_source=0 known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
+    if [[ -n ${source[0]} ]]; then
+        has_source=1
+    else
+        for arch in "${known_archs[@]}"; do
+            local source_arch="source_${arch}[@]"
+            if [[ -n ${!source_arch} ]]; then
+                has_source=1
                 break
             fi
         done
+    fi
+    if ((has_source == 0)); then
+        fancy_message error "Package does not contain 'source'"
+        ret=1
+    else
+        for arch in "${known_archs[@]}"; do
+            local source_arch="source_${arch}[@]"
+            if [[ -n ${!source_arch} ]]; then
+                test_source=()
+                if [[ -n ${source[0]} ]]; then
+                  # shellcheck disable=SC2206
+                  test_source+=(${source[*]})
+                fi
+                # shellcheck disable=SC2206
+                test_source+=(${!source_arch})
+                if [[ -n ${test_source[1]} ]]; then
+                    lint_source_deb_test "${test_source[*]}"
+                    if ((ret == 1)); then
+                        break
+                    fi
+                fi
+            fi
+        done
+        if [[ -n ${source[1]} ]]; then
+           lint_source_deb_test "${source[*]}"
+        fi
     fi
     return "${ret}"
 }
@@ -292,12 +329,24 @@ function lint_replace() {
 }
 
 function lint_hash() {
-    local ret=0
+    local ret=0 test_hash known_archs=("amd64" "arm64" "armel" "armhf" "i386" "mips64el" "ppc64el" "riscv64" "s390x")
     if [[ -n ${hash} ]]; then
-        for i in "${!hash[@]}"; do
-            if [[ ${hash[i]} == "SKIP" ]]; then
+        # shellcheck disable=SC2206
+        test_hash+=(${hash[*]})
+    fi
+    for arch in "${known_archs[@]}"; do
+        local hash_arch="hash_${arch}[*]"
+        if [[ -n ${!hash_arch} ]]; then
+            # shellcheck disable=SC2206
+            test_hash+=(${!hash_arch})
+        fi
+    done
+    # shellcheck disable=SC2128
+    if [[ -n ${test_hash} ]]; then
+        for i in ${!test_hash[*]}; do
+            if [[ ${test_hash[i]} == "SKIP" ]]; then
                 ret=0
-            elif ((${#hash[i]} != 64)); then
+            elif ((${#test_hash[i]} != 64)); then
                 fancy_message error "'hash' is improperly formatted"
                 ret=1
             fi

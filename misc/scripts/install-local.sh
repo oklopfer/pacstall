@@ -123,7 +123,7 @@ function log() {
     } | sudo tee "$METADIR/$name" > /dev/null
 }
 
-parse_source_entry() {
+function parse_source_entry() {
     unset url dest git_branch git_tag git_commit
     local entry="$1"
     url="${entry#*::}"
@@ -1130,7 +1130,10 @@ function git_down() {
     if [[ -n ${source[1]} ]]; then
         cd ..
         if [[ ${source[*]} == *${dest}.git*${dest}.git* ]]; then
-            mv "./${dest}" "./${dest}~${comp_git_pkgver}"
+            if ! mv "./${dest}" "./${dest}~${comp_git_pkgver}" &> /dev/null; then
+                fancy_message error "${CYAN}${dest}~${comp_git_pkgver}${NC} has already been cloned"
+                clean_fail_down
+            fi
         fi
         gather_down
     fi
@@ -1202,6 +1205,21 @@ function deb_down() {
     fi
 }
 
+function append_arch_entry() {
+    local source_arch hash_arch
+    source_arch="source_${CARCH}[*]"
+    hash_arch="hash_${CARCH}[*]"
+    if [[ -n ${!source_arch} ]]; then
+        # shellcheck disable=SC2206
+        source+=(${!source_arch})
+    fi
+    if [[ -n ${!hash_arch} ]]; then
+        # shellcheck disable=SC2206
+        hash+=(${!hash_arch})
+    fi
+}
+
+append_arch_entry
 for i in "${!source[@]}"; do
     parse_source_entry "${source[$i]}"
     genextr_declare
