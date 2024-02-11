@@ -549,6 +549,7 @@ function makedeb() {
 
     if [[ $name == *-git ]]; then
         parse_source_entry "${source[0]}"
+        # shellcheck disable=SC2031
         local vcsurl="${url#file://}"
         vcsurl="${vcsurl#git+}"
         if [[ -n ${git_branch} ]]; then
