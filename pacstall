@@ -300,7 +300,7 @@ function check_url() {
 
 # use axel if available
 function download() {
-	local src="$1" out="${2:-${src##*/}}"
+    local src="$1" out="${2:-${src##*/}}"
     if [[ $PACSTALL_DOWNLOADER != "payload" ]]; then
         sudo rm -f "$out"
     fi
@@ -315,18 +315,24 @@ function download() {
     fi
 
     case "$PACSTALL_DOWNLOADER" in
-        axel)
+        verbose-axel)
             axel -ao "$out" "$src" || return 1
             ;;
-        curl)
+        axel)
+            axel -a -q -o "$out" "$src" || return 1
+            ;;
+        verbose-curl)
             curl -L -# -o "$out" "$src" || return 1
             ;;
-        quiet-wget)
-            wget -q -O "$out" -- "$src" 2>&1 || return 1
+        curl)
+            curl -sSL -o "$out" "$src" || return 1
+            ;;
+        verbose-wget)
+            wget -q --show-progress --progress=bar:force -O "$out" -- "$src" 2>&1 || return 1
             ;;
         payload) ;;
         wget | *)
-            wget -q --show-progress --progress=bar:force -O "$out" -- "$src" 2>&1 || return 1
+            wget -q -O "$out" -- "$src" 2>&1 || return 1
             ;;
     esac
 }
