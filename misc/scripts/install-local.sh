@@ -158,6 +158,9 @@ parse_source_entry() {
 function calc_git_pkgver() {
     unset comp_git_pkgver
     local calc_commit
+    if [[ $url == git+* ]]; then
+        url="${url#git+}"
+    fi
     if [[ -n ${git_branch} ]]; then
         calc_commit="git ls-remote ${url} ${git_branch}"
     elif [[ -n ${git_tag} ]]; then
@@ -1229,7 +1232,10 @@ for i in "${!source[@]}"; do
         dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
-        *.git)
+        *.git | git+* )
+            if [[ $url == git+* ]]; then
+                url="${url#git+}"
+            fi
             git_down
             ;;
         *.deb)
