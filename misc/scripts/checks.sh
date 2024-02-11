@@ -159,7 +159,7 @@ function lint_source() {
         done
     fi
     local source_host="source_${CARCH}[*]"
-    if [[ -z ${source[*]} || -z ${!source_host} ]]; then
+    if [[ -z ${source[*]} && -z ${!source_host} ]]; then
         has_source=0
     fi
     if ((has_source == 0)); then
