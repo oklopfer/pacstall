@@ -49,8 +49,8 @@ function cleanup() {
     fi
     sudo rm -rf "${STOWDIR}/${name:-$PACKAGE}.deb"
     rm -f /tmp/pacstall-select-options
-    unset name repology pkgver git_pkgver epoch url depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority 2> /dev/null
-    unset -f pkgver post_install post_remove pre_install prepare build package 2> /dev/null
+    unset name repology pkgver git_pkgver epoch url source depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority noextract 2> /dev/null
+    unset -f post_install post_remove pre_install prepare build package 2> /dev/null
     sudo rm -f "${pacfile}"
 }
 
@@ -152,6 +152,9 @@ function parse_source_entry() {
     elif [[ $entry != *#*=* ]]; then
         url="$entry"
         dest="${url##*/}"
+    fi
+    if [[ ${dest} == *"?"* ]]; then
+      dest="${dest%%\?*}"
     fi
 }
 
@@ -548,7 +551,17 @@ function makedeb() {
     fi
 
     if [[ $name == *-git ]]; then
-        deblog "Vcs-Git" "${source[0]}"
+        parse_source_entry "${source[0]}"
+        # shellcheck disable=SC2031
+        local vcsurl="${url#file://}"
+        vcsurl="${vcsurl#git+}"
+        if [[ -n ${git_branch} ]]; then
+            deblog "Vcs-Git" "${vcsurl} -b ${git_branch}"
+        elif [[ -n ${git_tag} ]]; then
+            deblog "Vcs-Git" "${vcsurl} -b ${git_tag}"
+        else
+          deblog "Vcs-Git" "${vcsurl}"
+        fi
     fi
 
     if [[ -n ${makedepends[*]} ]]; then
@@ -1139,20 +1152,33 @@ function git_down() {
     fi
 }
 
-function hashcheck_down() {
+function net_down() {
     fancy_message info "Downloading ${BPurple}${dest}${NC}"
     download "$url" "$dest" || fail_down
-    fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}"
-    hashcheck "${dest}" "${expectedHash}" || return 1
+}
+
+function hashcheck_down() {
+    if [[ -n "${expectedHash}" ]]; then
+        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}[${YELLOW}...${NC}]"
+        hashcheck "${dest}" "${expectedHash}" || return 1
+    fi
 }
 
 function genextr_down() {
-    genextr_declare
     hashcheck_down
-    fancy_message sub "Extracting ${CYAN}${dest}${NC}"
-    ${ext_method} "${dest}" 1>&1 2> /dev/null
-    if [[ -f ${dest} ]]; then
-        rm -f "${dest}"
+    local extract=true
+    for keep_archive in "${noextract[@]}"; do
+        if [[ ${keep_archive} == "${dest}" ]]; then
+            extract=false
+            break
+        fi
+    done
+    if ${extract}; then
+        fancy_message sub "Extracting ${CYAN}${dest}${NC}"
+        ${ext_method} "${dest}" 1>&1 2> /dev/null
+        if [[ -f ${dest} ]]; then
+            rm -f "${dest}"
+        fi
     fi
     if [[ -z ${source[1]} ]]; then
         cd ./*/ 2> /dev/null || {
@@ -1205,6 +1231,13 @@ function deb_down() {
     fi
 }
 
+function file_down() {
+    fancy_message info "Copying local archive ${BPurple}${dest}${NC}"
+    cp -r "${url}" "${dest}" || fail_down
+    genextr_declare
+    genextr_down
+}
+
 function append_arch_entry() {
     local source_arch hash_arch
     source_arch="source_${CARCH}[*]"
@@ -1252,6 +1285,11 @@ for i in "${!source[@]}"; do
         dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
+        *file://* )
+            url="${url#file://}"
+            url="${url#git+}"
+            file_down
+            ;;
         *.git | git+* )
             if [[ $url == git+* ]]; then
                 url="${url#git+}"
@@ -1259,18 +1297,23 @@ for i in "${!source[@]}"; do
             git_down
             ;;
         *.deb)
+            net_down
             deb_down
             ;;
         *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
+            net_down
+            genextr_declare
             genextr_down
             ;;
         *)
+            net_down
             hashcheck_down
             if [[ -n ${source[1]} ]]; then
                 gather_down
             fi
             ;;
     esac
+    unset expectedHash
 done
 
 export srcdir="$PWD"
