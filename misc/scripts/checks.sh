@@ -339,6 +339,7 @@ function lint_hash() {
             test_hash+=(${!hash_arch})
         fi
     done
+    # shellcheck disable=SC2128
     if [[ -n ${test_hash} ]]; then
         for i in ${!test_hash[*]}; do
             if [[ ${test_hash[i]} == "SKIP" ]]; then
