@@ -1086,23 +1086,24 @@ function gather_down() {
 }
 
 function git_down() {
-    local revision gitopts
+    local revision gitopts commit_cut
     dest="${dest%.git}"
     if [[ -n ${git_branch} || -n ${git_tag} ]]; then
         if [[ -n ${git_branch} ]]; then
             revision="${git_branch}"
-            fancy_message info "Cloning ${dest} from branch"
+            fancy_message info "Cloning ${dest} from branch ${git_branch}"
         elif [[ -n ${git_tag} ]]; then
             revision="${git_tag}"
-            fancy_message info "Cloning ${dest} from tag"
+            fancy_message info "Cloning ${dest} from tag ${git_tag}"
         fi
         gitopts="--recurse-submodules -b ${revision}"
     elif [[ -n ${git_commit} ]]; then
         gitopts=" --no-checkout --filter=blob:none"
         fancy_message info "Cloning ${dest} with no blobs"
+        commit_cut="$(echo ${git_commit} | cut -f1 | cut -c1-8)"
     else
         gitopts="--recurse-submodules"
-        fancy_message info "Cloning ${dest}"
+        fancy_message info "Cloning ${dest} from HEAD"
     fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
     git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts}
@@ -1112,7 +1113,7 @@ function git_down() {
         fancy_message warn "Could not enter into the cloned git repository"
     }
     if [[ -n ${git_commit} ]]; then
-        fancy_message info "Fetching ${dest} from commit"
+        fancy_message info "Fetching commit ${commit_cut}"
         git fetch --quiet origin "${git_commit}" &> /dev/null
         git checkout --quiet --force "${git_commit}"
         git submodule update --init --recursive
