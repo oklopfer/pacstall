@@ -1108,7 +1108,7 @@ function git_down() {
         fancy_message info "Cloning ${dest} from HEAD"
     fi
     # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null || fail_down
     # cd into the directory
     cd "./${dest}" 2> /dev/null || {
         error_log 1 "install $PACKAGE"
@@ -1116,17 +1116,17 @@ function git_down() {
     }
     if [[ -n ${git_commit} ]]; then
         fancy_message sub "Fetching commit ${commit_cut}"
-        git fetch --quiet origin "${git_commit}" &> /dev/null
-        git checkout --quiet --force "${git_commit}" &> /dev/null
+        git fetch --quiet origin "${git_commit}" &> /dev/null || fail_down
+        git checkout --quiet --force "${git_commit}" &> /dev/null || fail_down
         git submodule update --init --recursive
     fi
     # Check the integrity
     calc_git_pkgver
     fancy_message sub "Checking integrity of ${comp_git_pkgver}"
-    git fsck --full --no-progress --no-verbose || return 1
+    git fsck --full --no-progress --no-verbose || fancy_message warn "Could not check integrity of cloned git repository"
     if [[ -n ${source[1]} ]]; then
         cd ..
-        if [[ ${source[*]} == *${dest}*${dest}* ]]; then
+        if [[ ${source[*]} == *${dest}.git*${dest}.git* ]]; then
             mv "./${dest}" "./${dest}~${comp_git_pkgver}"
         fi
         gather_down
