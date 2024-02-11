@@ -549,14 +549,14 @@ function makedeb() {
 
     if [[ $name == *-git ]]; then
         parse_source_entry "${source[0]}"
-        url="${url#file://}"
-        url="${url#git+}"
+        local vcsurl="${url#file://}"
+        vcsurl="${vcsurl#git+}"
         if [[ -n ${git_branch} ]]; then
-            deblog "Vcs-Git" "${url} -b ${git_branch}"
+            deblog "Vcs-Git" "${vcsurl} -b ${git_branch}"
         elif [[ -n ${git_tag} ]]; then
-            deblog "Vcs-Git" "${url} -b ${git_tag}"
+            deblog "Vcs-Git" "${vcsurl} -b ${git_tag}"
         else
-          deblog "Vcs-Git" "${url}"
+          deblog "Vcs-Git" "${vcsurl}"
         fi
     fi
 
