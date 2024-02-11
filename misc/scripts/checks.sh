@@ -154,6 +154,7 @@ function lint_source() {
     local ret=0 test_source has_source=0 known_archs_source=()
     mapfile -t known_archs_source < <(dpkg-architecture --list-known)
     for i in "${!known_archs_source[@]}"; do
+        # shellcheck disable=SC2004
         known_archs_source[$i]=${known_archs_source[$i]//-/_}
     done
     if [[ -n ${source[0]} ]]; then
@@ -336,6 +337,7 @@ function lint_hash() {
     local ret=0 test_hash known_archs_hash=()
     mapfile -t known_archs_hash < <(dpkg-architecture --list-known)
     for i in "${!known_archs_hash[@]}"; do
+        # shellcheck disable=SC2004
         known_archs_hash[$i]=${known_archs_hash[$i]//-/_}
     done
     if [[ -n ${hash} ]]; then
