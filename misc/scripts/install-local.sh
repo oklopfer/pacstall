@@ -130,6 +130,7 @@ function parse_source_entry() {
     dest="${entry%%::*}"
     if [[ $entry != *::* && $entry == *#*=* ]]; then
         dest="${url%%#*}"
+        # Default filename is the last portion of the URL.
         dest="${dest##*/}"
     fi
     case $url in
@@ -153,6 +154,8 @@ function parse_source_entry() {
         url="$entry"
         dest="${url##*/}"
     fi
+    # Strip URL parameters (everything after, and including, a ? character).
+    dest="${dest%%/?*}"
 }
 
 function calc_git_pkgver() {
