@@ -128,7 +128,7 @@ function lint_version() {
 
 function lint_source_deb_test() {
     # shellcheck disable=SC2206
-    local input_source=($1)
+    local input_source=($@)
     for i in "${!input_source[@]}"; do
         local url="${input_source[$i]}"
         local file_name="${url##*/}"
@@ -180,7 +180,7 @@ function lint_source() {
                 # shellcheck disable=SC2206
                 test_source+=(${!source_arch})
                 if [[ -n ${test_source[1]} ]]; then
-                    lint_source_deb_test "${test_source[*]}"
+                    lint_source_deb_test "${test_source[@]}"
                     if ((ret == 1)); then
                         break
                     fi
@@ -188,7 +188,7 @@ function lint_source() {
             fi
         done
         if [[ -n ${source[1]} ]]; then
-           lint_source_deb_test "${source[*]}"
+           lint_source_deb_test "${source[@]}"
         fi
     fi
     return "${ret}"

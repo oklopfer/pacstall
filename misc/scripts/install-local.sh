@@ -49,7 +49,7 @@ function cleanup() {
     fi
     sudo rm -rf "${STOWDIR}/${name:-$PACKAGE}.deb"
     rm -f /tmp/pacstall-select-options
-    unset name repology pkgver git_pkgver epoch url source depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall epoch homepage backup pkgrel mask pac_functions repo priority noextract 2> /dev/null
+    unset name repology pkgver git_pkgver epoch url source depends makedepends breaks replace gives pkgdesc hash optdepends ppa arch maintainer pacdeps patch PACPATCH NOBUILDDEP provides incompatible optinstall pkgbase homepage backup pkgrel mask pac_functions repo priority noextract 2> /dev/null
     unset -f post_install post_remove pre_install prepare build package 2> /dev/null
     sudo rm -f "${pacfile}"
 }
@@ -154,7 +154,7 @@ function parse_source_entry() {
         dest="${url##*/}"
     fi
     if [[ ${dest} == *"?"* ]]; then
-      dest="${dest%%\?*}"
+        dest="${dest%%\?*}"
     fi
 }
 
@@ -165,15 +165,15 @@ function calc_git_pkgver() {
         url="${url#git+}"
     fi
     if [[ -n ${git_branch} ]]; then
-        calc_commit="git ls-remote ${url} ${git_branch}"
+        calc_commit="$(git ls-remote "${url}" "${git_branch}")"
     elif [[ -n ${git_tag} ]]; then
-        calc_commit="git ls-remote ${url} ${git_tag}"
+        calc_commit="$(git ls-remote "${url}" "${git_tag}")"
     elif [[ -n ${git_commit} ]]; then
-        calc_commit="echo ${git_commit}"
+        calc_commit="${git_commit}"
     else
-        calc_commit="git ls-remote ${url} HEAD"
+        calc_commit="$(git ls-remote "${url}" HEAD)"
     fi
-    comp_git_pkgver="$(${calc_commit} | cut -f1 | cut -c1-8)"
+    comp_git_pkgver="${calc_commit:0:8}"
 }
 
 function compare_remote_version() (
@@ -560,7 +560,7 @@ function makedeb() {
         elif [[ -n ${git_tag} ]]; then
             deblog "Vcs-Git" "${vcsurl} -b ${git_tag}"
         else
-          deblog "Vcs-Git" "${vcsurl}"
+            deblog "Vcs-Git" "${vcsurl}"
         fi
     fi
 
@@ -995,69 +995,69 @@ function install_builddepends() {
 }
 
 function genextr_declare() {
-    ext_method=""
-    ext_dep=""
+    unset ext_method ext_deps
     case "${url,,}" in
         *.zip)
             ext_method="unzip -qo"
-            ext_dep="unzip"
+            ext_deps=("unzip")
             ;;
         *.tar.gz | *.tgz)
             ext_method="tar -xzf"
-            ext_dep="tar"
+            ext_deps=("tar" "gzip")
             ;;
         *.tar.bz2 | *.tbz2)
             ext_method="tar -xjf"
-            ext_dep="tar"
+            ext_deps=("tar" "bzip2")
             ;;
         *.tar.xz | *.txz)
             ext_method="tar -xJf"
-            ext_dep="tar"
+            ext_deps=("tar" "xz-utils")
+            ;;
+        *.tar.zst | *.tzst)
+            ext_method="tar -xf"
+            ext_deps=("tar" "zstd")
             ;;
         *.gz)
             ext_method="gunzip"
-            ext_dep="gzip"
+            ext_deps=("gzip")
             ;;
         *.bz2)
             ext_method="bunzip2"
-            ext_dep="bzip2"
+            ext_deps=("bzip2")
             ;;
         *.xz)
             ext_method="unxz"
-            ext_dep="xz-utils"
+            ext_deps=("xz-utils")
             ;;
         *.lz)
             ext_method="lzip -d"
-            ext_dep="lzip"
+            ext_deps=("lzip")
             ;;
         *.lzma)
             ext_method="unlzma"
-            ext_dep="xz-utils"
+            ext_deps=("xz-utils")
             ;;
         *.zst)
             ext_method="unzstd -q"
-            ext_dep="zstd"
+            ext_deps=("zstd")
             ;;
         *.7z)
             ext_method="7za x"
-            ext_dep="p7zip-full"
+            ext_deps=("p7zip-full")
             ;;
         *.rar)
             ext_method="unrar x -inul"
-            ext_dep="unrar"
+            ext_deps=("unrar")
             ;;
         *.lz4)
             ext_method="lz4 -d"
-            ext_dep="liblz4-tool"
+            ext_deps=("liblz4-tool")
             ;;
         *.tar)
             ext_method="tar -xf"
-            ext_dep="tar"
+            ext_deps=("tar")
             ;;
     esac
-    if [[ -n ${ext_dep} && ${makedepends[*]} != *${ext_dep}* ]]; then
-        makedepends+=("${ext_dep}")
-    fi
 }
 
 function clean_fail_down() {
@@ -1091,14 +1091,23 @@ function fail_down() {
 }
 
 function gather_down() {
-    local target_name="${PACKAGE}~${pkgver}"
-    local target_dir="${SRCDIR}/${target_name}"
-    mkdir -p "${target_dir}"
-    if ! [[ ${PWD} == "${target_dir}" ]]; then
-        find . -mindepth 1 -maxdepth 1 ! -name "${target_name}" -exec mv {} "${target_dir}/" \;
-        cd "${target_dir}" || {
+    if [[ -z ${pkgbase} ]]; then
+        if [[ -n $PACSTALL_PAYLOAD ]]; then
+            export pkgbase="/tmp/pacstall-pacdep"
+        else
+            export pkgbase="${SRCDIR}/${PACKAGE}~${pkgver}"
+        fi
+    fi
+    mkdir -p "${pkgbase}"
+    if ! [[ ${PWD} == "${pkgbase}" ]]; then
+        find "${PWD}" -mindepth 1 -maxdepth 1 ! -wholename "${pkgbase}" \
+        ! -wholename "${SRCDIR}" \
+        ! -wholename "/tmp/pacstall-pacdep" \
+        ! -wholename "/tmp/pacstall-pacdeps-$PACKAGE" \
+        -exec mv {} "${pkgbase}/" \;
+        cd "${pkgbase}" || {
             error_log 1 "gather-main $PACKAGE"
-            fancy_message warn "Could not enter into the main directory ${target_dir}"
+            fancy_message warn "Could not enter into the main directory ${pkgbase}"
         }
     fi
 }
@@ -1138,17 +1147,19 @@ function git_down() {
     fi
     # Check the integrity
     calc_git_pkgver
-    fancy_message sub "Checking integrity of ${YELLOW}${comp_git_pkgver}${NC}"
+    local cloned_git_hash
+    cloned_git_hash="$(git rev-parse HEAD)"
+    fancy_message sub "Checking integrity of ${YELLOW}${cloned_git_hash:0:8}${NC}"
     git fsck --full --no-progress --no-verbose || fancy_message warn "Could not check integrity of cloned git repository"
-    if [[ -n ${source[1]} ]]; then
+    if [[ ${cloned_git_hash:0:8} != "${comp_git_pkgver}" ]]; then
+        fancy_message error "Cloned git repository does not match upstream hash"
+        clean_fail_down
+    fi
+    if [[ ${source[i]} != "${source[0]}" ]]; then
         cd ..
-        if [[ ${source[*]} == *${dest}.git*${dest}.git* ]]; then
-            if ! mv "./${dest}" "./${dest}~${comp_git_pkgver}" &> /dev/null; then
-                fancy_message error "${CYAN}${dest}~${comp_git_pkgver}${NC} has already been cloned"
-                clean_fail_down
-            fi
-        fi
         gather_down
+    else
+        export pkgbase="${PWD}"
     fi
 }
 
@@ -1158,7 +1169,7 @@ function net_down() {
 }
 
 function hashcheck_down() {
-    if [[ -n "${expectedHash}" ]]; then
+    if [[ -n ${expectedHash} ]]; then
         fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}[${YELLOW}...${NC}]"
         hashcheck "${dest}" "${expectedHash}" || return 1
     fi
@@ -1180,11 +1191,12 @@ function genextr_down() {
             rm -f "${dest}"
         fi
     fi
-    if [[ -z ${source[1]} ]]; then
+    if [[ ${source[i]} == "${source[0]}" && ${extract} == "true" ]]; then
         cd ./*/ 2> /dev/null || {
             error_log 1 "install $PACKAGE"
             fancy_message warn "Could not enter into the downloaded archive"
         }
+        export pkgbase="${PWD}"
     else
         gather_down
     fi
@@ -1235,7 +1247,9 @@ function file_down() {
     fancy_message info "Copying local archive ${BPurple}${dest}${NC}"
     cp -r "${url}" "${dest}" || fail_down
     genextr_declare
-    genextr_down
+    if [[ -n ${ext_method} ]]; then
+        genextr_down
+    fi
 }
 
 function append_arch_entry() {
@@ -1252,10 +1266,32 @@ function append_arch_entry() {
     fi
 }
 
+unset dest_list
+declare -A dest_list
 append_arch_entry
 for i in "${!source[@]}"; do
     parse_source_entry "${source[$i]}"
+    dest="${dest%.git}"
+    if [[ -n "${dest_list[$dest]}" ]] && [[ "${dest_list[$dest]}" != "${url}" ]]; then
+        fancy_message error "${dest} is associated with multiple source entries"
+        clean_fail_down
+    else
+        dest_list["${dest}"]="${url}"
+    fi
     genextr_declare
+    unset ext_dep make_dep in_make_deps
+    for ext_dep in "${ext_deps[@]}"; do
+        in_make_deps=false
+        for make_dep in "${makedepends[@]}"; do
+            if [[ ${ext_dep} == "${make_dep}" ]]; then
+                in_make_deps=true
+                break
+            fi
+        done
+        if ! ${in_make_deps}; then
+            makedepends+=("${ext_dep}")
+        fi
+    done
 done
 install_builddepends
 
@@ -1285,12 +1321,12 @@ for i in "${!source[@]}"; do
         dest="${PACSTALL_PAYLOAD##*/}"
     fi
     case "${url,,}" in
-        *file://* )
+        *file://*)
             url="${url#file://}"
             url="${url#git+}"
             file_down
             ;;
-        *.git | git+* )
+        *.git | git+*)
             if [[ $url == git+* ]]; then
                 url="${url#git+}"
             fi
@@ -1300,7 +1336,7 @@ for i in "${!source[@]}"; do
             net_down
             deb_down
             ;;
-        *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
+        *.zip | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz | *.tar.zst | *.tzst | *.gz | *.bz2 | *.xz | *.lz | *.lzma | *.zst | *.7z | *.rar | *.lz4 | *.tar)
             net_down
             genextr_declare
             genextr_down
@@ -1308,7 +1344,7 @@ for i in "${!source[@]}"; do
         *)
             net_down
             hashcheck_down
-            if [[ -n ${source[1]} ]]; then
+            if [[ ${source[i]} != "${source[0]}" ]]; then
                 gather_down
             fi
             ;;
