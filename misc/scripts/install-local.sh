@@ -65,29 +65,29 @@ function trap_ctrlc() {
 }
 
 function write_meta() {
-    echo "_name=\"$name"\"
-    echo "_version=\"${full_version}"\"
-    echo "_install_size=\"${install_size}"\"
+    echo "_name=\"$name\""
+    echo "_version=\"${full_version}\""
+    echo "_install_size=\"${install_size}\""
     printf '_date=\"%(%a %b %_d %r %Z %Y)T\"\n'
     if [[ -n $maintainer ]]; then
-        echo "_maintainer=\"${maintainer}"\"
+        echo "_maintainer=\"${maintainer}\""
     fi
     if [[ -n $ppa ]]; then
         echo "_ppa=(${ppa[*]})"
     fi
     if [[ -n $homepage ]]; then
-        echo "_homepage=\"${homepage}"\"
+        echo "_homepage=\"${homepage}\""
     fi
     if [[ -n $gives ]]; then
-        echo "_gives=\"$gives"\"
+        echo "_gives=\"$gives\""
     fi
     if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
         echo '_pacstall_depends="true"'
     fi
     if [[ $local == 'no' ]]; then
-        echo "_remoterepo=\"$pURL"\"
+        echo "_remoterepo=\"$pURL\""
         if [[ $branch == 'yes' ]]; then
-            echo "_remotebranch=\"$pBRANCH"\"
+            echo "_remotebranch=\"$pBRANCH\""
         fi
     fi
     if [[ -n ${pacdeps[*]} ]]; then
@@ -102,7 +102,6 @@ function write_meta() {
     fi
 }
 
-# Logging metadata
 function meta_log() {
     # Origin repo info parsing
     if [[ ${local} == "no" ]]; then
@@ -183,7 +182,7 @@ function calc_git_pkgver() {
     comp_git_pkgver="${calc_commit:0:8}"
 }
 
-function compare_remote_version() (
+function compare_remote_version() {
     local input="${1}"
     unset -f pkgver 2> /dev/null
     source "$METADIR/$input" || return 1
@@ -218,7 +217,7 @@ function compare_remote_version() (
     else
         echo "no"
     fi
-)
+}
 
 function set_distro() {
     local distro_name="$(lsb_release -si 2> /dev/null)"
