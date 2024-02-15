@@ -64,63 +64,70 @@ function trap_ctrlc() {
     exit 1
 }
 
-# Logging metadata
-function log() {
-    # Origin repo info parsing
+function write_meta() {
+    echo "_name=\"$name"\"
+    echo "_version=\"${full_version}"\"
+    echo "_install_size=\"${install_size}"\"
+    printf '_date=\"%(%a %b %_d %r %Z %Y)T\"\n'
+    if [[ -n $maintainer ]]; then
+        echo "_maintainer=\"${maintainer}"\"
+    fi
+    if [[ -n $ppa ]]; then
+        echo "_ppa=(${ppa[*]})"
+    fi
+    if [[ -n $homepage ]]; then
+        echo "_homepage=\"${homepage}"\"
+    fi
+    if [[ -n $gives ]]; then
+        echo "_gives=\"$gives"\"
+    fi
+    if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
+        echo '_pacstall_depends="true"'
+    fi
     if [[ $local == 'no' ]]; then
-        if [[ $REPO == *"github"* ]]; then
-            pURL="${REPO/'raw.githubusercontent.com'/'github.com'}"
-            pURL="${pURL%/*}"
-            pBRANCH="${REPO##*/}"
-            branch="yes"
-        elif [[ $REPO == *"gitlab"* ]]; then
-            pURL="${REPO%/-/raw/*}"
-            pBRANCH="${REPO##*/-/raw/}"
-            branch="yes"
-        else
-            pURL="$REPO"
-            branch="no"
+        echo "_remoterepo=\"$pURL"\"
+        if [[ $branch == 'yes' ]]; then
+            echo "_remotebranch=\"$pBRANCH"\"
         fi
+    fi
+    if [[ -n ${pacdeps[*]} ]]; then
+        _pacdeps=("${pacdeps[@]}")
+        declare -p _pacdeps
+        unset _pacdeps
+    fi
+    if [[ -n ${mask[*]} ]]; then
+        _mask=("${mask[@]}")
+        declare -p _mask
+        unset _mask
+    fi
+}
+
+# Logging metadata
+function meta_log() {
+    # Origin repo info parsing
+    if [[ ${local} == "no" ]]; then
+        # shellcheck disable=SC2153
+        case $REPO in
+            *"github"*)
+                pURL="${REPO/'raw.githubusercontent.com'/'github.com'}"
+                pURL="${pURL%/*}"
+                pBRANCH="${REPO##*/}"
+                branch="yes"
+                ;;
+            *"gitlab"*)
+                pURL="${REPO%/-/raw/*}"
+                pBRANCH="${REPO##*/-/raw/}"
+                branch="yes"
+                ;;
+            *)
+                pURL="$REPO"
+                branch="no"
+                ;;
+        esac
     fi
 
     # Metadata writing
-    {
-        echo "_name=\"$name"\"
-        echo "_version=\"${full_version}"\"
-        echo "_install_size=\"${install_size}"\"
-        printf '_date=\"%(%a %b %_d %r %Z %Y)T\"\n'
-        if [[ -n $maintainer ]]; then
-            echo "_maintainer=\"${maintainer}"\"
-        fi
-        if [[ -n $ppa ]]; then
-            echo "_ppa=(${ppa[*]})"
-        fi
-        if [[ -n $homepage ]]; then
-            echo "_homepage=\"${homepage}"\"
-        fi
-        if [[ -n $gives ]]; then
-            echo "_gives=\"$gives"\"
-        fi
-        if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
-            echo '_pacstall_depends="true"'
-        fi
-        if [[ $local == 'no' ]]; then
-            echo "_remoterepo=\"$pURL"\"
-            if [[ $branch == 'yes' ]]; then
-                echo "_remotebranch=\"$pBRANCH"\"
-            fi
-        fi
-        if [[ -n ${pacdeps[*]} ]]; then
-            _pacdeps=("${pacdeps[@]}")
-            declare -p _pacdeps
-            unset _pacdeps
-        fi
-        if [[ -n ${mask[*]} ]]; then
-            _mask=("${mask[@]}")
-            declare -p _mask
-            unset _mask
-        fi
-    } | sudo tee "$METADIR/$name" > /dev/null
+    write_meta | sudo tee "$METADIR/$name" > /dev/null
 }
 
 function parse_source_entry() {
@@ -614,50 +621,25 @@ function makedeb() {
             pre_install) export deb_post_file="preinst" ;;
         esac
         if is_function "$i"; then
-            echo '#!/bin/bash
-set -e
-function ask(){
-local default reply
-if [[ ${2-} == "Y" ]];then
-echo -ne "$1 [Y/n] "
-default="Y"
-elif [[ ${2-} == "N" ]];then
-echo -ne "$1 [y/N] "
-fi
-default=${2-}
-read -r reply <&0
-[[ -z $reply ]] && reply=$default
-case "$reply" in
-Y*|y*)export answer=1
-return 0
-;;
-N*|n*)export answer=0
-return 1
-esac
-}
-function fancy_message(){
-local MESSAGE_TYPE="$1"
-local MESSAGE="$2"
-local BOLD="\033[1m"
-local NC="\033[0m"
-case $MESSAGE_TYPE in
-info)echo -e "[$BOLD+$NC] INFO: $MESSAGE";;
-warn)echo -e "[$BOLD*$NC] WARNING: $MESSAGE";;
-error)echo -e "[$BOLD!$NC] ERROR: $MESSAGE";;
-sub)echo -e "	[$BOLD>$NC] $MESSAGE";;
-*)echo -e "[$BOLD?$NC] UNKNOWN: $MESSAGE"
-esac
-}
-function get_homedir(){
-local PACSTALL_USER=$(logname 2>/dev/null||echo "${SUDO_USER:-$USER}")
-eval echo ~"$PACSTALL_USER"
-}
-export homedir="$(get_homedir)"
-if [[ -n $PACSTALL_BUILD_CORES ]];then
-declare -g NCPU="${PACSTALL_BUILD_CORES:-1}"
-else
-declare -g NCPU="$(nproc)"
-fi' | sudo tee "$STOWDIR/$name/DEBIAN/$deb_post_file" > /dev/null
+            local pac_min_functions pacmf_out
+            # shellcheck disable=SC2016
+            pac_min_functions=(
+                'set -e' 'function ask(){' 'local default reply' 'if [[ ${2-} == "Y" ]];then'
+                'echo -ne "$1 [Y/n] "' 'default="Y"' 'elif [[ ${2-} == "N" ]];then' 'echo -ne "$1 [y/N] "'
+                'fi' 'default=${2-}' 'read -r reply <&0' '[[ -z $reply ]] && reply=$default' 'case "$reply" in'
+                'Y*|y*)export answer=1' 'return 0' ';;' 'N*|n*)export answer=0' 'return 1' 'esac' '}'
+                'function fancy_message(){' 'local MESSAGE_TYPE="$1"' 'local MESSAGE="$2"' 'local BOLD="\033[1m"'
+                'local NC="\033[0m"' 'case $MESSAGE_TYPE in' 'info)echo -e "[$BOLD+$NC] INFO: $MESSAGE";;'
+                'warn)echo -e "[$BOLD*$NC] WARNING: $MESSAGE";;' 'error)echo -e "[$BOLD!$NC] ERROR: $MESSAGE";;'
+                'sub)echo -e "  [$BOLD>$NC] $MESSAGE";;' '*)echo -e "[$BOLD?$NC] UNKNOWN: $MESSAGE"' 'esac' '}'
+                'function get_homedir(){' 'local PACSTALL_USER=$(logname 2>/dev/null||echo "${SUDO_USER:-$USER}")'
+                'eval echo ~"$PACSTALL_USER"' '}' 'export homedir="$(get_homedir)"' 'if [[ -n $PACSTALL_BUILD_CORES ]];then'
+                'declare -g NCPU="${PACSTALL_BUILD_CORES:-1}"' 'else' 'declare -g NCPU="$(nproc)"' 'fi'
+            )
+            echo '#!/bin/bash' | sudo tee "$STOWDIR/$name/DEBIAN/$deb_post_file" > /dev/null
+            for pacmf_out in "${pac_min_functions[@]}"; do
+                echo "${pacmf_out}" | sudo tee -a "$STOWDIR/$name/DEBIAN/$deb_post_file" > /dev/null
+            done
             {
                 cat "${pacfile}"
                 echo -e "\n$i"
@@ -736,9 +718,9 @@ fi' | sudo tee "$STOWDIR/$name/DEBIAN/$deb_post_file" > /dev/null
             sudo mkdir -p /etc/apt/preferences.d
         fi
         local combined_pinning=("${provides[@]}" "${gives:-${name}}")
-        echo "Package: ${combined_pinning[*]}
-Pin: version *
-Pin-Priority: -1" | sudo tee "/etc/apt/preferences.d/${name}-pin" > /dev/null
+        echo "Package: ${combined_pinning[*]}" | sudo tee "/etc/apt/preferences.d/${name}-pin" > /dev/null
+        echo "Pin: version *" | sudo tee -a "/etc/apt/preferences.d/${name}-pin" > /dev/null
+        echo "Pin-Priority: -1" | sudo tee -a "/etc/apt/preferences.d/${name}-pin" > /dev/null
         return 0
     else
         sudo mv "$STOWDIR/$name.deb" "$PACDEB_DIR"
@@ -750,6 +732,314 @@ Pin-Priority: -1" | sudo tee "/etc/apt/preferences.d/${name}-pin" > /dev/null
         sudo mv "$STOWDIR/$name" "/tmp/pacstall-no-build/$name"
         cleanup
         exit 0
+    fi
+}
+
+function install_builddepends() {
+    if [[ -n ${makedepends[*]} ]]; then
+        for build_dep in "${makedepends[@]}"; do
+            if ! is_apt_package_installed "${build_dep}"; then
+                # If not installed yet, we can mark it as possibly removable
+                not_installed_yet_builddepends+=("${build_dep}")
+            fi
+        done
+
+        if ((${#not_installed_yet_builddepends[@]} != 0)); then
+            fancy_message info "${BLUE}$name${NC} requires ${CYAN}${not_installed_yet_builddepends[*]}${NC} to install"
+            if ! sudo apt-get install -y "${not_installed_yet_builddepends[@]}"; then
+                fancy_message error "Failed to install build dependencies"
+                error_log 8 "install $PACKAGE"
+                fancy_message info "Cleaning up"
+                cleanup
+                return 1
+            fi
+        fi
+    fi
+}
+
+function genextr_declare() {
+    unset ext_method ext_deps
+    # shellcheck disable=SC2031
+    case "${url,,}" in
+        *.zip)
+            ext_method="unzip -qo"
+            ext_deps=("unzip")
+            ;;
+        *.tar.gz | *.tgz)
+            ext_method="tar -xzf"
+            ext_deps=("tar" "gzip")
+            ;;
+        *.tar.bz2 | *.tbz2)
+            ext_method="tar -xjf"
+            ext_deps=("tar" "bzip2")
+            ;;
+        *.tar.xz | *.txz)
+            ext_method="tar -xJf"
+            ext_deps=("tar" "xz-utils")
+            ;;
+        *.tar.zst | *.tzst)
+            ext_method="tar -xf"
+            ext_deps=("tar" "zstd")
+            ;;
+        *.gz)
+            ext_method="gunzip"
+            ext_deps=("gzip")
+            ;;
+        *.bz2)
+            ext_method="bunzip2"
+            ext_deps=("bzip2")
+            ;;
+        *.xz)
+            ext_method="unxz"
+            ext_deps=("xz-utils")
+            ;;
+        *.lz)
+            ext_method="lzip -d"
+            ext_deps=("lzip")
+            ;;
+        *.lzma)
+            ext_method="unlzma"
+            ext_deps=("xz-utils")
+            ;;
+        *.zst)
+            ext_method="unzstd -q"
+            ext_deps=("zstd")
+            ;;
+        *.7z)
+            ext_method="7za x"
+            ext_deps=("p7zip-full")
+            ;;
+        *.rar)
+            ext_method="unrar x -inul"
+            ext_deps=("unrar")
+            ;;
+        *.lz4)
+            ext_method="lz4 -d"
+            ext_deps=("liblz4-tool")
+            ;;
+        *.tar)
+            ext_method="tar -xf"
+            ext_deps=("tar")
+            ;;
+    esac
+}
+
+function clean_fail_down() {
+    fancy_message info "Cleaning up"
+    cleanup
+    exit 1
+}
+
+function hashcheck() {
+    local inputFile="${1}" inputHash="${2}" fileHash
+    # Get hash of file
+    fileHash="$(sha256sum "${inputFile}")"
+    fileHash="${fileHash%% *}"
+
+    # Check if the input hash is the same as of the downloaded file.
+    # Skip this test if the hash variable doesn't exist in the pacscript.
+    if [[ -n ${inputHash} && ${inputHash} != "${fileHash}" ]]; then
+        fancy_message error "Hashes do not match"
+        fancy_message sub "Got:      ${BRed}${fileHash}${NC}"
+        fancy_message sub "Expected: ${BGreen}${inputHash}${NC}"
+        error_log 16 "install $PACKAGE"
+        clean_fail_down
+    fi
+}
+
+function fail_down() {
+    error_log 1 "download $PACKAGE"
+    fancy_message error "Failed to download package"
+    clean_fail_down
+}
+
+function gather_down() {
+    if [[ -z ${pkgbase} ]]; then
+        if [[ -n $PACSTALL_PAYLOAD ]]; then
+            export pkgbase="/tmp/pacstall-pacdep"
+        else
+            export pkgbase="${SRCDIR}/${PACKAGE}~${pkgver}"
+        fi
+    fi
+    mkdir -p "${pkgbase}"
+    if ! [[ ${PWD} == "${pkgbase}" ]]; then
+        find "${PWD}" -mindepth 1 -maxdepth 1 ! -wholename "${pkgbase}" \
+            ! -wholename "${SRCDIR}" \
+            ! -wholename "/tmp/pacstall-pacdep" \
+            ! -wholename "/tmp/pacstall-pacdeps-$PACKAGE" \
+            -exec mv {} "${pkgbase}/" \;
+        cd "${pkgbase}" || {
+            error_log 1 "gather-main $PACKAGE"
+            fancy_message error "Could not enter into the main directory ${YELLOW}${pkgbase}${NC}"
+            clean_fail_down
+        }
+    fi
+}
+
+function git_down() {
+    local revision gitopts
+    dest="${dest%.git}"
+    if [[ -n ${git_branch} || -n ${git_tag} ]]; then
+        if [[ -n ${git_branch} ]]; then
+            revision="${git_branch}"
+            fancy_message info "Cloning ${BPurple}${dest}${NC} from branch ${CYAN}${git_branch}${NC}"
+        elif [[ -n ${git_tag} ]]; then
+            revision="${git_tag}"
+            fancy_message info "Cloning ${BPurple}${dest}${NC} from tag ${CYAN}${git_tag}${NC}"
+        fi
+        gitopts="--recurse-submodules -b ${revision}"
+    elif [[ -n ${git_commit} ]]; then
+        gitopts="--no-checkout --filter=blob:none"
+        fancy_message info "Cloning ${BPurple}${dest}${NC} with no blobs"
+    else
+        gitopts="--recurse-submodules"
+        fancy_message info "Cloning ${BPurple}${dest}${NC} from ${CYAN}HEAD${NC}"
+    fi
+    # git clone quietly, with no history, and if submodules are there, download with 10 jobs
+    # shellcheck disable=SC2086,SC2031
+    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null || fail_down
+    # cd into the directory
+    cd "./${dest}" 2> /dev/null || {
+        error_log 1 "install $PACKAGE"
+        fancy_message error "Could not enter into the cloned git repository"
+        clean_fail_down
+    }
+    if [[ -n ${git_commit} ]]; then
+        fancy_message sub "Fetching commit ${CYAN}${git_commit:0:8}${NC}"
+        git fetch --quiet origin "${git_commit}" &> /dev/null || fail_down
+        git checkout --quiet --force "${git_commit}" &> /dev/null || fail_down
+        git submodule update --init --recursive
+    fi
+    # Check the integrity
+    calc_git_pkgver
+    local cloned_git_hash
+    cloned_git_hash="$(git rev-parse HEAD)"
+    fancy_message sub "Checking integrity of ${YELLOW}${cloned_git_hash:0:8}${NC}"
+    git fsck --full --no-progress --no-verbose || fancy_message warn "Could not check integrity of cloned git repository"
+    if [[ ${cloned_git_hash:0:8} != "${comp_git_pkgver}" ]]; then
+        fancy_message error "Cloned git repository does not match upstream hash"
+        clean_fail_down
+    fi
+    if [[ ${source[i]} != "${source[0]}" ]]; then
+        cd ..
+        gather_down
+    else
+        export pkgbase="${PWD}"
+    fi
+}
+
+function net_down() {
+    fancy_message info "Downloading ${BPurple}${dest}${NC}"
+    # shellcheck disable=SC2031
+    download "$url" "$dest" || fail_down
+}
+
+function hashcheck_down() {
+    if [[ -n ${expectedHash} && ${expectedHash} != "SKIP" ]]; then
+        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}[${YELLOW}...${NC}]"
+        hashcheck "${dest}" "${expectedHash}" || return 1
+    fi
+}
+
+function genextr_down() {
+    hashcheck_down
+    local extract=true keep_archive
+    for keep_archive in "${noextract[@]}"; do
+        if [[ ${keep_archive} == "${dest}" ]]; then
+            extract=false
+            break
+        fi
+    done
+    if ${extract}; then
+        fancy_message sub "Extracting ${CYAN}${dest}${NC}"
+        ${ext_method} "${dest}" 1>&1 2> /dev/null
+        if [[ -f ${dest} ]]; then
+            rm -f "${dest}"
+        fi
+    fi
+    if [[ ${source[i]} == "${source[0]}" && ${extract} == "true" ]]; then
+        cd ./*/ 2> /dev/null || {
+            error_log 1 "install $PACKAGE"
+            fancy_message warn "Could not enter into the extracted archive"
+            gather_down
+        }
+        export pkgbase="${PWD}"
+    else
+        gather_down
+    fi
+}
+
+function deb_down() {
+    hashcheck_down
+    if type -t pre_install &> /dev/null; then
+        if ! pre_install; then
+            error_log 5 "pre_install hook"
+            fancy_message error "Could not run preinst hook successfully"
+            exit 1
+        fi
+    fi
+    if sudo apt install -y -f ./"${dest}" 2> /dev/null; then
+        meta_log
+        if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
+            sudo apt-mark auto "${gives:-$name}" 2> /dev/null
+        fi
+        if type -t post_install &> /dev/null; then
+            if ! post_install; then
+                error_log 5 "post_install hook"
+                fancy_message error "Could not run post_install hook successfully"
+                exit 1
+            fi
+        fi
+        fancy_message info "Storing pacscript"
+        sudo mkdir -p "/var/cache/pacstall/$PACKAGE/${full_version}"
+        if ! cd "$DIR" 2> /dev/null; then
+            error_log 1 "install $PACKAGE"
+            fancy_message error "Could not enter into ${DIR}"
+            exit 1
+        fi
+        sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
+        sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
+        fancy_message info "Cleaning up"
+        cleanup
+        exit 0
+    else
+        fancy_message error "Failed to install the package"
+        error_log 14 "install $PACKAGE"
+        sudo apt purge "${gives:-$name}" -y > /dev/null
+        clean_fail_down
+    fi
+}
+
+function file_down() {
+    fancy_message info "Copying local archive ${BPurple}${dest}${NC}"
+    # shellcheck disable=SC2031
+    cp -r "${url}" "${dest}" || fail_down
+    genextr_declare
+    if [[ -n ${ext_method} ]]; then
+        genextr_down
+    elif [[ ${source[i]} == "${source[0]}" && -d ${dest} ]]; then
+        cd "./${dest}" 2> /dev/null || {
+            error_log 1 "install $PACKAGE"
+            fancy_message warn "Could not enter into the copied archive"
+            gather_down
+        }
+        export pkgbase="${PWD}"
+    else
+        gather_down
+    fi
+}
+
+function append_arch_entry() {
+    local source_arch hash_arch
+    source_arch="source_${CARCH}[*]"
+    hash_arch="hash_${CARCH}[*]"
+    if [[ -n ${!source_arch} ]]; then
+        # shellcheck disable=SC2206
+        source+=(${!source_arch})
+    fi
+    if [[ -n ${!hash_arch} ]]; then
+        # shellcheck disable=SC2206
+        hash+=(${!hash_arch})
     fi
 }
 
@@ -972,307 +1262,13 @@ if ! is_package_installed "${name}"; then
     fi
 fi
 
-function install_builddepends() {
-    if [[ -n ${makedepends[*]} ]]; then
-        for build_dep in "${makedepends[@]}"; do
-            if ! is_apt_package_installed "${build_dep}"; then
-                # If not installed yet, we can mark it as possibly removable
-                not_installed_yet_builddepends+=("${build_dep}")
-            fi
-        done
-
-        if ((${#not_installed_yet_builddepends[@]} != 0)); then
-            fancy_message info "${BLUE}$name${NC} requires ${CYAN}${not_installed_yet_builddepends[*]}${NC} to install"
-            if ! sudo apt-get install -y "${not_installed_yet_builddepends[@]}"; then
-                fancy_message error "Failed to install build dependencies"
-                error_log 8 "install $PACKAGE"
-                fancy_message info "Cleaning up"
-                cleanup
-                return 1
-            fi
-        fi
-    fi
-}
-
-function genextr_declare() {
-    unset ext_method ext_deps
-    case "${url,,}" in
-        *.zip)
-            ext_method="unzip -qo"
-            ext_deps=("unzip")
-            ;;
-        *.tar.gz | *.tgz)
-            ext_method="tar -xzf"
-            ext_deps=("tar" "gzip")
-            ;;
-        *.tar.bz2 | *.tbz2)
-            ext_method="tar -xjf"
-            ext_deps=("tar" "bzip2")
-            ;;
-        *.tar.xz | *.txz)
-            ext_method="tar -xJf"
-            ext_deps=("tar" "xz-utils")
-            ;;
-        *.tar.zst | *.tzst)
-            ext_method="tar -xf"
-            ext_deps=("tar" "zstd")
-            ;;
-        *.gz)
-            ext_method="gunzip"
-            ext_deps=("gzip")
-            ;;
-        *.bz2)
-            ext_method="bunzip2"
-            ext_deps=("bzip2")
-            ;;
-        *.xz)
-            ext_method="unxz"
-            ext_deps=("xz-utils")
-            ;;
-        *.lz)
-            ext_method="lzip -d"
-            ext_deps=("lzip")
-            ;;
-        *.lzma)
-            ext_method="unlzma"
-            ext_deps=("xz-utils")
-            ;;
-        *.zst)
-            ext_method="unzstd -q"
-            ext_deps=("zstd")
-            ;;
-        *.7z)
-            ext_method="7za x"
-            ext_deps=("p7zip-full")
-            ;;
-        *.rar)
-            ext_method="unrar x -inul"
-            ext_deps=("unrar")
-            ;;
-        *.lz4)
-            ext_method="lz4 -d"
-            ext_deps=("liblz4-tool")
-            ;;
-        *.tar)
-            ext_method="tar -xf"
-            ext_deps=("tar")
-            ;;
-    esac
-}
-
-function clean_fail_down() {
-    fancy_message info "Cleaning up"
-    cleanup
-    exit 1
-}
-
-function hashcheck() {
-    local inputFile="${1}" inputHash="${2}" fileHash
-    [[ ${inputHash} == "SKIP" ]] && return 0
-    # Get hash of file
-    fileHash="$(sha256sum "${inputFile}")"
-    fileHash="${fileHash%% *}"
-
-    # Check if the input hash is the same as of the downloaded file.
-    # Skip this test if the hash variable doesn't exist in the pacscript.
-    if [[ -n ${inputHash} && ${inputHash} != "${fileHash}" ]]; then
-        fancy_message error "Hashes do not match"
-        fancy_message sub "Got:      ${BRed}${fileHash}${NC}"
-        fancy_message sub "Expected: ${BGreen}${inputHash}${NC}"
-        error_log 16 "install $PACKAGE"
-        clean_fail_down
-    fi
-}
-
-function fail_down() {
-    error_log 1 "download $PACKAGE"
-    fancy_message error "Failed to download package"
-    clean_fail_down
-}
-
-function gather_down() {
-    if [[ -z ${pkgbase} ]]; then
-        if [[ -n $PACSTALL_PAYLOAD ]]; then
-            export pkgbase="/tmp/pacstall-pacdep"
-        else
-            export pkgbase="${SRCDIR}/${PACKAGE}~${pkgver}"
-        fi
-    fi
-    mkdir -p "${pkgbase}"
-    if ! [[ ${PWD} == "${pkgbase}" ]]; then
-        find "${PWD}" -mindepth 1 -maxdepth 1 ! -wholename "${pkgbase}" \
-        ! -wholename "${SRCDIR}" \
-        ! -wholename "/tmp/pacstall-pacdep" \
-        ! -wholename "/tmp/pacstall-pacdeps-$PACKAGE" \
-        -exec mv {} "${pkgbase}/" \;
-        cd "${pkgbase}" || {
-            error_log 1 "gather-main $PACKAGE"
-            fancy_message warn "Could not enter into the main directory ${pkgbase}"
-        }
-    fi
-}
-
-function git_down() {
-    local revision gitopts
-    dest="${dest%.git}"
-    if [[ -n ${git_branch} || -n ${git_tag} ]]; then
-        if [[ -n ${git_branch} ]]; then
-            revision="${git_branch}"
-            fancy_message info "Cloning ${BPurple}${dest}${NC} from branch ${CYAN}${git_branch}${NC}"
-        elif [[ -n ${git_tag} ]]; then
-            revision="${git_tag}"
-            fancy_message info "Cloning ${BPurple}${dest}${NC} from tag ${CYAN}${git_tag}${NC}"
-        fi
-        gitopts="--recurse-submodules -b ${revision}"
-    elif [[ -n ${git_commit} ]]; then
-        gitopts="--no-checkout --filter=blob:none"
-        fancy_message info "Cloning ${BPurple}${dest}${NC} with no blobs"
-    else
-        gitopts="--recurse-submodules"
-        fancy_message info "Cloning ${BPurple}${dest}${NC} from ${CYAN}HEAD${NC}"
-    fi
-    # git clone quietly, with no history, and if submodules are there, download with 10 jobs
-    # shellcheck disable=SC2086
-    git clone --quiet --depth=1 --jobs=10 "${url}" "${dest}" ${gitopts} &> /dev/null || fail_down
-    # cd into the directory
-    cd "./${dest}" 2> /dev/null || {
-        error_log 1 "install $PACKAGE"
-        fancy_message warn "Could not enter into the cloned git repository"
-    }
-    if [[ -n ${git_commit} ]]; then
-        fancy_message sub "Fetching commit ${CYAN}${git_commit:0:8}${NC}"
-        git fetch --quiet origin "${git_commit}" &> /dev/null || fail_down
-        git checkout --quiet --force "${git_commit}" &> /dev/null || fail_down
-        git submodule update --init --recursive
-    fi
-    # Check the integrity
-    calc_git_pkgver
-    local cloned_git_hash
-    cloned_git_hash="$(git rev-parse HEAD)"
-    fancy_message sub "Checking integrity of ${YELLOW}${cloned_git_hash:0:8}${NC}"
-    git fsck --full --no-progress --no-verbose || fancy_message warn "Could not check integrity of cloned git repository"
-    if [[ ${cloned_git_hash:0:8} != "${comp_git_pkgver}" ]]; then
-        fancy_message error "Cloned git repository does not match upstream hash"
-        clean_fail_down
-    fi
-    if [[ ${source[i]} != "${source[0]}" ]]; then
-        cd ..
-        gather_down
-    else
-        export pkgbase="${PWD}"
-    fi
-}
-
-function net_down() {
-    fancy_message info "Downloading ${BPurple}${dest}${NC}"
-    download "$url" "$dest" || fail_down
-}
-
-function hashcheck_down() {
-    if [[ -n ${expectedHash} ]]; then
-        fancy_message sub "Checking hash ${YELLOW}${expectedHash:0:8}${NC}[${YELLOW}...${NC}]"
-        hashcheck "${dest}" "${expectedHash}" || return 1
-    fi
-}
-
-function genextr_down() {
-    hashcheck_down
-    local extract=true
-    for keep_archive in "${noextract[@]}"; do
-        if [[ ${keep_archive} == "${dest}" ]]; then
-            extract=false
-            break
-        fi
-    done
-    if ${extract}; then
-        fancy_message sub "Extracting ${CYAN}${dest}${NC}"
-        ${ext_method} "${dest}" 1>&1 2> /dev/null
-        if [[ -f ${dest} ]]; then
-            rm -f "${dest}"
-        fi
-    fi
-    if [[ ${source[i]} == "${source[0]}" && ${extract} == "true" ]]; then
-        cd ./*/ 2> /dev/null || {
-            error_log 1 "install $PACKAGE"
-            fancy_message warn "Could not enter into the downloaded archive"
-        }
-        export pkgbase="${PWD}"
-    else
-        gather_down
-    fi
-}
-
-function deb_down() {
-    hashcheck_down
-    if type -t pre_install &> /dev/null; then
-        if ! pre_install; then
-            error_log 5 "pre_install hook"
-            fancy_message error "Could not run preinst hook successfully"
-            exit 1
-        fi
-    fi
-    if sudo apt install -y -f ./"${dest}" 2> /dev/null; then
-        log
-        if [[ -f /tmp/pacstall-pacdeps-"$name" ]]; then
-            sudo apt-mark auto "${gives:-$name}" 2> /dev/null
-        fi
-        if type -t post_install &> /dev/null; then
-            if ! post_install; then
-                error_log 5 "post_install hook"
-                fancy_message error "Could not run post_install hook successfully"
-                exit 1
-            fi
-        fi
-        fancy_message info "Storing pacscript"
-        sudo mkdir -p "/var/cache/pacstall/$PACKAGE/${full_version}"
-        if ! cd "$DIR" 2> /dev/null; then
-            error_log 1 "install $PACKAGE"
-            fancy_message error "Could not enter into ${DIR}"
-            exit 1
-        fi
-        sudo cp -r "${pacfile}" "/var/cache/pacstall/$PACKAGE/${full_version}"
-        sudo chmod o+r "/var/cache/pacstall/$PACKAGE/${full_version}/$PACKAGE.pacscript"
-        fancy_message info "Cleaning up"
-        cleanup
-        exit 0
-    else
-        fancy_message error "Failed to install the package"
-        error_log 14 "install $PACKAGE"
-        sudo apt purge "${gives:-$name}" -y > /dev/null
-        clean_fail_down
-    fi
-}
-
-function file_down() {
-    fancy_message info "Copying local archive ${BPurple}${dest}${NC}"
-    cp -r "${url}" "${dest}" || fail_down
-    genextr_declare
-    if [[ -n ${ext_method} ]]; then
-        genextr_down
-    fi
-}
-
-function append_arch_entry() {
-    local source_arch hash_arch
-    source_arch="source_${CARCH}[*]"
-    hash_arch="hash_${CARCH}[*]"
-    if [[ -n ${!source_arch} ]]; then
-        # shellcheck disable=SC2206
-        source+=(${!source_arch})
-    fi
-    if [[ -n ${!hash_arch} ]]; then
-        # shellcheck disable=SC2206
-        hash+=(${!hash_arch})
-    fi
-}
-
 unset dest_list
 declare -A dest_list
 append_arch_entry
 for i in "${!source[@]}"; do
     parse_source_entry "${source[$i]}"
     dest="${dest%.git}"
-    if [[ -n "${dest_list[$dest]}" ]] && [[ "${dest_list[$dest]}" != "${url}" ]]; then
+    if [[ -n ${dest_list[$dest]} && ${dest_list[$dest]} != "${url}" ]]; then
         fancy_message error "${dest} is associated with multiple source entries"
         clean_fail_down
     else
@@ -1292,7 +1288,9 @@ for i in "${!source[@]}"; do
             makedepends+=("${ext_dep}")
         fi
     done
+    unset ext_dep make_dep in_make_deps
 done
+unset dest_list
 install_builddepends
 
 fancy_message info "Retrieving packages"
@@ -1349,7 +1347,7 @@ for i in "${!source[@]}"; do
             fi
             ;;
     esac
-    unset expectedHash
+    unset expectedHash dest url git_branch git_tag git_commit ext_deps ext_method
 done
 
 export srcdir="$PWD"
@@ -1427,7 +1425,7 @@ cd "$HOME" 2> /dev/null || (
 makedeb
 
 # Metadata writing
-log
+meta_log
 
 fancy_message info "Performing post install operations"
 fancy_message sub "Storing pacscript"
