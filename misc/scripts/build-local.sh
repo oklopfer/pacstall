@@ -469,9 +469,9 @@ function write_meta() {
     echo "_install_size=\"${install_size}\""
     printf '_date=\"%(%a %b %_d %r %Z %Y)T\"\n'
     if [[ -n ${maintainer[*]} ]]; then
-            _maintainer=("${maintainer[@]}")
-            declare -p _maintainer
-            unset _maintainer
+        _maintainer=("${maintainer[@]}")
+        declare -p _maintainer
+        unset _maintainer
     fi
     if [[ -n $ppa ]]; then
         echo "_ppa=(${ppa[*]})"
