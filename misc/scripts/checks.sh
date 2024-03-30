@@ -217,7 +217,7 @@ function lint_pipe_check() {
 
 function lint_deps() {
     local dep_type dep_array ret=0 dep idx
-    for dep_type in "depends" "makedepends" "pacdeps"; do
+    for dep_type in "depends" "makedepends" "optdepends" "pacdeps"; do
         idx=0
         local -n dep_array="${dep_type}"
         if [[ -n ${dep_array[*]} ]]; then
@@ -225,7 +225,10 @@ function lint_deps() {
                 if [[ -z ${dep} ]]; then
                     fancy_message error "'${dep_type}' index '${idx}' cannot be empty"
                     ret=1
-                elif [[ ${dep} == *"|"* ]] && [[ ${dep_type} == "pacdeps" ]] || ! lint_pipe_check "${dep}"; then
+                elif [[ ${dep_type} == "optdepends" && ${dep} != *": "* ]] \
+                || [[ ${dep} == *"|"* ]] \
+				&& [[ ${dep_type} == "pacdeps" ]] \
+                || ! lint_pipe_check "${dep}"; then
                     fancy_message error "'${dep_type}' index '${idx}' is not formatted correctly"
                     ret=1
                 fi
@@ -264,23 +267,6 @@ function lint_ppa() {
         for el_ppa in "${ppa[@]}"; do
             if [[ ! $el_ppa =~ ^[a-zA-Z0-9]+\/[a-zA-Z0-9]+ ]]; then
                 fancy_message error "'ppa' index '${idx}' is improperly formatted"
-                ret=1
-            fi
-            ((idx++))
-        done
-    fi
-    return "${ret}"
-}
-
-function lint_optdepends() {
-    local ret=0 optdepend idx=0
-    if [[ -n ${optdepends[*]} ]]; then
-        for optdepend in "${optdepends[@]}"; do
-            if [[ -z ${optdepend} ]]; then
-                fancy_message error "'optdepends' index '${idx}' cannot be empty"
-                ret=1
-            elif [[ $optdepend != *": "* ]] || [[ ${dep} == *"|"* ]] && ! lint_pipe_check "${dep}"; then
-                fancy_message error "'optdepends' index '${idx}' is not formatted correctly"
                 ret=1
             fi
             ((idx++))
@@ -541,7 +527,7 @@ function lint_priority() {
 }
 
 function checks() {
-    local ret=0 check linting_checks=(lint_pkgname lint_gives lint_pkgrel lint_epoch lint_version lint_source lint_pkgdesc lint_maintainer lint_deps lint_ppa lint_optdepends lint_conflicts lint_breaks lint_replaces lint_hash lint_patch lint_provides lint_incompatible lint_arch lint_mask lint_priority)
+    local ret=0 check linting_checks=(lint_pkgname lint_gives lint_pkgrel lint_epoch lint_version lint_source lint_pkgdesc lint_maintainer lint_deps lint_ppa lint_conflicts lint_breaks lint_replaces lint_hash lint_patch lint_provides lint_incompatible lint_arch lint_mask lint_priority)
     for check in "${linting_checks[@]}"; do
         "${check}" || ret=1
     done
