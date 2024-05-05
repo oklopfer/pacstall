@@ -56,12 +56,12 @@ sudo chown "$PACSTALL_USER" -R /tmp/pacstall
 sudo mkdir -p /usr/share/bash-completion/completions
 
 for pkg in "${required_packages[@]}"; do
-	if ! dpkg -s "${pkg}" > /dev/null 2>&1; then
-		to_install+=("${pkg}")
-	fi
+    if ! dpkg -s "${pkg}" > /dev/null 2>&1; then
+        to_install+=("${pkg}")
+    fi
 done
 if ((${#to_install[@]} != 0)); then
-	sudo apt-get install "${to_install[@]}" -y
+    sudo apt-get install "${to_install[@]}" -y
 fi
 
 # Pre 4.0.0 metadata dir changes
@@ -98,9 +98,7 @@ for i in {error-log.sh,add-repo.sh,search.sh,dep-tree.sh,version-constraints.sh,
 done
 # Remove renamed files
 for i in {error_log.sh,download.sh,download-local.sh,install-local.sh,build-local.sh}; do
-    if [[ -f "$SCRIPTDIR/scripts/$i" ]]; then
-        sudo rm "$SCRIPTDIR/scripts/$i"
-    fi
+    sudo rm -f "$SCRIPTDIR/scripts/$i"
 done
 
 sudo curl -s -o /bin/pacstall "$REPO/pacstall" &
