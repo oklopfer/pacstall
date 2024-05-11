@@ -88,15 +88,7 @@ done
 export safeenv
 EOF
     sudo chmod +x "$tmpfile"
-
-    sudo env - bwrap --die-with-parent --new-session --dev-bind / / \
-        --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run --dev-bind /dev/null /dev/null \
-        --ro-bind "$input" "$input" --dev-bind "$PACDIR" "$PACDIR" --ro-bind "$tmpfile" "$tmpfile" \
-        --dev-bind "${METADIR}" "${METADIR}" --dev-bind "${SCRIPTDIR}" "${SCRIPTDIR}" \
-        --dev-bind "${STAGEDIR}" "${STAGEDIR}" --dev-bind "${LOGDIR}" "${LOGDIR}" \
-        --setenv homedir "$homedir" --setenv CARCH "$CARCH" --setenv DISTRO "$DISTRO" --setenv NCPU "$NCPU" \
-        --setenv PACSTALL_USER "$PACSTALL_USER" --remount-ro / \
-        "$tmpfile" && sudo rm "$tmpfile"
+    "$tmpfile" && sudo rm "$tmpfile"
 }
 
 function bwrap_function() {
@@ -127,16 +119,7 @@ EOF
         fi
     fi
     # shellcheck disable=SC2086
-    sudo bwrap ${share_net} --die-with-parent --new-session \
-        --dev-bind / / --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run ${dns_resolve} \
-        --dev-bind /dev/null /dev/null --tmpfs /root --tmpfs /home \
-        --dev-bind "$PACDIR" "$PACDIR" --dev-bind "${METADIR}" "${METADIR}" --dev-bind "${SCRIPTDIR}" "${SCRIPTDIR}" \
-        --dev-bind "${STAGEDIR}" "${STAGEDIR}" --dev-bind "${LOGDIR}" "${LOGDIR}" --setenv LOGDIR "$LOGDIR" \
-        --setenv SCRIPTDIR "$SCRIPTDIR" --setenv STAGEDIR "$STAGEDIR" --setenv pkgdir "$pkgdir" \
-        --setenv _archive "$_archive" --setenv srcdir "$srcdir" --setenv git_pkgver "$git_pkgver" \
-        --setenv homedir "$homedir" --setenv CARCH "$CARCH" --setenv DISTRO "$DISTRO" --setenv NCPU "$NCPU" \
-        --setenv PACSTALL_USER "$PACSTALL_USER" --remount-ro / \
-        "$tmpfile" && sudo rm "$tmpfile"
+    "$tmpfile" && sudo rm "$tmpfile"
 }
 
 # vim:set ft=sh ts=4 sw=4 noet:
