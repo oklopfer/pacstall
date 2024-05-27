@@ -100,7 +100,7 @@ for i in {error_log.sh,download.sh,download-local.sh,install-local.sh,build-loca
 done
 
 sudo curl -s -o /bin/pacstall "$REPO/pacstall" &
-sudo curl -s -o /usr/share/man/man8/pacstall.8.gz "$REPO/misc/pacstall.8.gz" &
+sudo curl -s -o "/usr/share/man/man1/pacstall.1.gz" "$REPO/misc/pacstall.1.gz" &
 sudo curl -s -o /usr/share/bash-completion/completions/pacstall "$REPO/misc/completion/bash" &
 
 if command -v fish &> /dev/null; then
