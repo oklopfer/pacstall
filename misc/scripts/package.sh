@@ -89,8 +89,8 @@ elif [[ -n ${incompatible[*]} ]]; then
 fi
 
 clean_builddir
-sudo mkdir -p "$STAGEDIR/$pacname/DEBIAN"
-sudo chmod a+rx "$STAGEDIR" "$STAGEDIR/$pacname" "$STAGEDIR/$pacname/DEBIAN"
+sudo mkdir -p "$STAGEDIR/$pacname"
+sudo chmod a+rx "$STAGEDIR" "$STAGEDIR/$pacname"
 
 # Run checks function
 if ! checks; then
@@ -257,6 +257,8 @@ for i in "${!source[@]}"; do
 done
 unset dest_list
 install_builddepends
+
+sudo mkdir -p "$STAGEDIR/$pacname/DEBIAN"
 
 # shellcheck disable=SC2034
 prompt_depends || { ignore_stack=true; return 1; }
