@@ -62,6 +62,8 @@ function suggested_solution() {
     fi
 }
 
+echo -e "[${BGreen}+${NC}] INFO: Updating..."
+
 if [[ -n $GIT_USER ]]; then
     REPO="file://$PWD"
 else
@@ -73,10 +75,10 @@ else
     fi
 fi
 
-fancy_message info $"Fetching translation list"
+fancy_message sub $"Fetching translation list"
 read -r -a linguas < <(curl -fsSL "${REPO}/misc/po/LINGUAS")
 
-fancy_message info $"Updating directories"
+fancy_message sub $"Updating directories"
 for i in "${METADIR}" "${LOGDIR}" "${MAN8DIR}" "${MAN5DIR}" "${PODIR}" "${BASH_COMPLETION_DIR}" "${FISH_COMPLETION_DIR}"; do
     sudo mkdir -p "${i}"
 done
@@ -84,7 +86,7 @@ for lang in "${linguas[@]}"; do
     sudo mkdir -p "misc/locale/${lang}/LC_MESSAGES/"
 done
 
-fancy_message info $"Checking dependencies"
+fancy_message sub $"Checking dependencies"
 for pkg in "${pacstall_deps[@]}"; do
     if ! dpkg -s "${pkg}" > /dev/null 2>&1; then
         if [[ ${pkg} == "spdx-licenses" ]]; then
@@ -111,7 +113,7 @@ old_info=($(cat "$SCRIPTDIR/repo/update" 2> /dev/null || echo pacstall master))
 old_username="${old_info[0]}"
 old_branch="${old_info[1]}"
 
-fancy_message info $"Pulling scripts from GitHub"
+fancy_message sub $"Pulling scripts from GitHub"
 pacstall_scripts=(
     "error-log" "add-repo" "search" "dep-tree" "version-constraints"
     "checks" "get-pacscript" "package" "package-base" "fetch-sources"
@@ -135,16 +137,16 @@ sudo curl -s -o "${BASH_COMPLETION_DIR}/pacstall" "${REPO}/misc/completion/bash"
 sudo curl -s -o "${FISH_COMPLETION_DIR}/pacstall.fish" "${REPO}/misc/completion/fish" &
 wait && stty "${tty_settings}"
 
-fancy_message info $"Rebuilding translations"
+fancy_message sub $"Rebuilding translations"
 for lang in "${linguas[@]}"; do
     sudo msgfmt -o "/usr/share/locale/${lang}/LC_MESSAGES/pacstall.mo" "${PODIR}/${lang}.po"
 done
 
-fancy_message info $"Rebuilding manpages"
+fancy_message sub $"Rebuilding manpages"
 sudo gzip --force -9n "${MAN8DIR}/pacstall.8"
 sudo gzip --force -9n "${MAN5DIR}/pacstall.5"
 
-fancy_message info $"Making scripts executable"
+fancy_message sub $"Making scripts executable"
 sudo chmod +x "/usr/bin/pacstall"
 sudo chmod +x "${SCRIPTDIR}/scripts/"*
 
