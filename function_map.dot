@@ -1,0 +1,296 @@
+digraph FunctionCalls {
+rankdir=LR;
+node [shape=box];
+size="150,150!";
+ratio=fill;
+
+    subgraph cluster_fetchsources {
+        label = "fetch-sources.sh";
+        "fetch-sources.sh";         "parse_source_entry";        "calc_git_pkgver";        "genextr_declare";        "clean_fail_down";        "hashcheck";        "fail_down";        "gather_down";        "git_down";        "net_down";        "hashcheck_down";        "genextr_down";        "deb_down";        "file_down";        "append_hash_entry";        "append_var_arch";        "append_modifier_entries";        "calc_distro";        "set_distro";        "get_compatible_releases";        "get_incompatible_releases";        "is_compatible_arch";        "check_builddepends";        "install_builddepends";        "compare_remote_version";    }
+
+    subgraph cluster_upgrade {
+        label = "upgrade.sh";
+        "upgrade.sh";         "ver_compare";        "calc_repo_ver";    }
+
+    subgraph cluster_versionconstraints {
+        label = "version-constraints.sh";
+        "version-constraints.sh";         "dep_const.apt_compare_to_constraints";        "dep_const.get_arch";        "dep_const.join_by";        "dep_const.pipe_split";        "dep_const.comma_array";        "dep_const.split_name_and_version";        "dep_const.get_pipe";        "dep_const.strip_description";        "dep_const.extract_description";        "dep_const.format_version";        "dep_const.is_pipe";        "dep_const.format_control";    }
+
+    subgraph cluster_managerepo {
+        label = "manage-repo.sh";
+        "manage-repo.sh";         "repo.split_components";        "repo.unraw_types";        "repo.unraw";        "repo.to_metalink";        "repo.from_metalink";        "repo.get_where";        "repo.get_all_type";        "repo.get_path";        "repo.specify";        "repo.parse";        "repo.format";    }
+
+    subgraph cluster_pacstall {
+        label = "pacstall";
+        "pacstall";         "def_colors";        "fancy_message";        "decl_scriptvars";        "cleanup";        "stacktrace";        "ask";        "suggested_solution";        "check_url";        "has_command";        "download";        "select_options";        "is_package_installed";        "is_apt_package_installed";        "is_array";        "is_function";        "array.contains";        "getMasks";        "getMasks_offending_pkg";        "lock";        "trap_ctrlc";    }
+
+    subgraph cluster_search {
+        label = "search.sh";
+        "search.sh";         "srclist.search";        "print_pkgbase_and_pkgname";        "srclist.parse";        "srclist.info";    }
+
+    subgraph cluster_deptree {
+        label = "dep-tree.sh";
+        "dep-tree.sh";         "array.remove";        "dep_tree.has_deps";        "dep_tree.load_traits";        "dep_tree.sort_traits_into_array";        "dep_tree.loop_traits";        "dep_tree.trim_pacdeps";    }
+
+    subgraph cluster_packagebase {
+        label = "package-base.sh";
+        "package-base.sh";         "trap_ctrlc";        "package_override";        "package_pkg";        "nproc";        "nproc";    }
+
+    subgraph cluster_build {
+        label = "build.sh";
+        "build.sh";         "deblog";        "clean_builddir";        "check_apt_dep";        "check_opt_dep";        "prompt_aptdepends";        "prompt_optdepends";        "deblog_depends";        "prompt_depends";        "generate_changelog";        "clean_logdir";        "createdeb";        "is_builddep_arch";        "makedeb";        "install_deb";        "repacstall";        "check_if_pacdep";        "write_meta";        "meta_log";    }
+
+    subgraph cluster_qualityassurance {
+        label = "quality-assurance.sh";
+        "quality-assurance.sh";         "parse_pr";        "parse_link";        "cleanup_qa";    }
+
+    subgraph cluster_errorlog {
+        label = "error-log.sh";
+        "error-log.sh";         "error_log";    }
+
+    subgraph cluster_checks {
+        label = "checks.sh";
+        "checks.sh";         "lint_pacname";        "lint_gives";        "lint_pkgrel";        "lint_epoch";        "lint_version";        "lint_source_deb_test";        "lint_source";        "lint_pkgdesc";        "lint_maintainer";        "lint_var_arch";        "lint_pipe_check";        "lint_deps";        "lint_ppa";        "lint_relations";        "lint_capital_check";        "lint_field_fmt";        "lint_fields";        "lint_hash";        "lint_incompatible";        "lint_arch";        "lint_mask";        "lint_bugs";        "lint_priority";        "lint_license";        "checks";    }
+
+    subgraph cluster_bwrap {
+        label = "bwrap.sh";
+        "bwrap.sh";         "safe_source";        "bwrap_function";    }
+
+    subgraph cluster_srcinfo {
+        label = "srcinfo.sh";
+        "srcinfo.sh";         "srcinfo.array_build";        "srcinfo.extr_globvar";        "srcinfo.extr_fnvar";        "srcinfo.get_attr";        "srcinfo.write_attr";        "srcinfo.extract";        "srcinfo.write_details";        "srcinfo.vars";        "srcinfo.write_global";        "srcinfo.write_package";        "srcinfo.gen";        "srcinfo.parse_key_val";        "srcinfo._basic_check";        "srcinfo._contains";        "srcinfo._create_array";        "srcinfo._promote_to_variable";        "srcinfo.parse";        "srcinfo.cleanup";        "srcinfo.reformat_assoc_arr";        "srcinfo.print_var";        "srcinfo.match_pkg";        "srcinfo.print_out";    }
+
+    subgraph cluster_queryinfo {
+        label = "query-info.sh";
+        "query-info.sh";         "get_field";    }
+
+    "bwrap.sh" -> "def_colors";
+    "add-repo.sh" -> "fancy_message";
+    "build.sh" -> "fancy_message";
+    "bwrap.sh" -> "fancy_message";
+    "checks.sh" -> "fancy_message";
+    "fetch-sources.sh" -> "fancy_message";
+    "get-pacscript.sh" -> "fancy_message";
+    "manage-repo.sh" -> "fancy_message";
+    "package-base.sh" -> "fancy_message";
+    "package.sh" -> "fancy_message";
+    "quality-assurance.sh" -> "fancy_message";
+    "query-info.sh" -> "fancy_message";
+    "remove.sh" -> "fancy_message";
+    "search.sh" -> "fancy_message";
+    "update.sh" -> "fancy_message";
+    "upgrade.sh" -> "fancy_message";
+    "build.sh" -> "cleanup";
+    "fetch-sources.sh" -> "cleanup";
+    "package-base.sh" -> "cleanup";
+    "package.sh" -> "cleanup";
+    "quality-assurance.sh" -> "cleanup";
+    "srcinfo.sh" -> "cleanup";
+    "add-repo.sh" -> "stacktrace";
+    "build.sh" -> "stacktrace";
+    "bwrap.sh" -> "stacktrace";
+    "checks.sh" -> "stacktrace";
+    "dep-tree.sh" -> "stacktrace";
+    "error-log.sh" -> "stacktrace";
+    "fetch-sources.sh" -> "stacktrace";
+    "get-pacscript.sh" -> "stacktrace";
+    "manage-repo.sh" -> "stacktrace";
+    "package-base.sh" -> "stacktrace";
+    "package.sh" -> "stacktrace";
+    "quality-assurance.sh" -> "stacktrace";
+    "query-info.sh" -> "stacktrace";
+    "remove.sh" -> "stacktrace";
+    "search.sh" -> "stacktrace";
+    "srcinfo.sh" -> "stacktrace";
+    "upgrade.sh" -> "stacktrace";
+    "version-constraints.sh" -> "stacktrace";
+    "add-repo.sh" -> "ask";
+    "build.sh" -> "ask";
+    "bwrap.sh" -> "ask";
+    "checks.sh" -> "ask";
+    "dep-tree.sh" -> "ask";
+    "package-base.sh" -> "ask";
+    "package.sh" -> "ask";
+    "query-info.sh" -> "ask";
+    "search.sh" -> "ask";
+    "srcinfo.sh" -> "ask";
+    "upgrade.sh" -> "ask";
+    "get-pacscript.sh" -> "suggested_solution";
+    "package.sh" -> "suggested_solution";
+    "update.sh" -> "suggested_solution";
+    "get-pacscript.sh" -> "check_url";
+    "search.sh" -> "check_url";
+    "fetch-sources.sh" -> "download";
+    "get-pacscript.sh" -> "download";
+    "package.sh" -> "download";
+    "search.sh" -> "download";
+    "update.sh" -> "download";
+    "upgrade.sh" -> "download";
+    "build.sh" -> "select_options";
+    "package-base.sh" -> "select_options";
+    "package.sh" -> "select_options";
+    "build.sh" -> "is_package_installed";
+    "fetch-sources.sh" -> "is_package_installed";
+    "package.sh" -> "is_package_installed";
+    "version-constraints.sh" -> "is_package_installed";
+    "build.sh" -> "is_apt_package_installed";
+    "fetch-sources.sh" -> "is_apt_package_installed";
+    "package-base.sh" -> "is_apt_package_installed";
+    "package.sh" -> "is_apt_package_installed";
+    "version-constraints.sh" -> "is_apt_package_installed";
+    "srcinfo.sh" -> "is_array";
+    "build.sh" -> "is_function";
+    "package.sh" -> "is_function";
+    "srcinfo.sh" -> "is_function";
+    "add-repo.sh" -> "array.contains";
+    "build.sh" -> "array.contains";
+    "checks.sh" -> "array.contains";
+    "dep-tree.sh" -> "array.contains";
+    "fetch-sources.sh" -> "array.contains";
+    "package-base.sh" -> "array.contains";
+    "package.sh" -> "array.contains";
+    "search.sh" -> "array.contains";
+    "package.sh" -> "getMasks";
+    "search.sh" -> "getMasks";
+    "package.sh" -> "getMasks_offending_pkg";
+    "package-base.sh" -> "trap_ctrlc";
+    "package.sh" -> "trap_ctrlc";
+    "checks.sh" -> "deblog";
+    "fetch-sources.sh" -> "deblog";
+    "package.sh" -> "clean_builddir";
+    "package.sh" -> "prompt_depends";
+    "package.sh" -> "clean_logdir";
+    "fetch-sources.sh" -> "makedeb";
+    "package.sh" -> "makedeb";
+    "fetch-sources.sh" -> "repacstall";
+    "fetch-sources.sh" -> "meta_log";
+    "package.sh" -> "meta_log";
+    "package-base.sh" -> "safe_source";
+    "package.sh" -> "bwrap_function";
+    "package-base.sh" -> "checks";
+    "package.sh" -> "checks";
+    "update.sh" -> "checks";
+    "upgrade.sh" -> "dep_tree.loop_traits";
+    "upgrade.sh" -> "dep_tree.trim_pacdeps";
+    "pacstall" -> "error_log";
+    "build.sh" -> "error_log";
+    "fetch-sources.sh" -> "error_log";
+    "get-pacscript.sh" -> "error_log";
+    "package-base.sh" -> "error_log";
+    "package.sh" -> "error_log";
+    "remove.sh" -> "error_log";
+    "search.sh" -> "error_log";
+    "update.sh" -> "error_log";
+    "upgrade.sh" -> "error_log";
+    "build.sh" -> "parse_source_entry";
+    "bwrap.sh" -> "parse_source_entry";
+    "package.sh" -> "parse_source_entry";
+    "upgrade.sh" -> "parse_source_entry";
+    "bwrap.sh" -> "calc_git_pkgver";
+    "package.sh" -> "calc_git_pkgver";
+    "upgrade.sh" -> "calc_git_pkgver";
+    "package.sh" -> "genextr_declare";
+    "package-base.sh" -> "clean_fail_down";
+    "package.sh" -> "clean_fail_down";
+    "package.sh" -> "hashcheck";
+    "package-base.sh" -> "fail_down";
+    "package.sh" -> "fail_down";
+    "package.sh" -> "gather_down";
+    "package.sh" -> "git_down";
+    "package.sh" -> "net_down";
+    "package.sh" -> "hashcheck_down";
+    "package.sh" -> "genextr_down";
+    "package.sh" -> "deb_down";
+    "package.sh" -> "file_down";
+    "package.sh" -> "append_modifier_entries";
+    "package-base.sh" -> "set_distro";
+    "upgrade.sh" -> "set_distro";
+    "package.sh" -> "get_compatible_releases";
+    "package.sh" -> "get_incompatible_releases";
+    "package.sh" -> "is_compatible_arch";
+    "package.sh" -> "install_builddepends";
+    "package.sh" -> "compare_remote_version";
+    "build.sh" -> "repo.unraw";
+    "add-repo.sh" -> "repo.from_metalink";
+    "add-repo.sh" -> "repo.get_where";
+    "search.sh" -> "repo.get_where";
+    "add-repo.sh" -> "repo.get_all_type";
+    "search.sh" -> "repo.get_path";
+    "pacstall" -> "repo.specify";
+    "search.sh" -> "repo.specify";
+    "search.sh" -> "repo.parse";
+    "upgrade.sh" -> "repo.parse";
+    "search.sh" -> "repo.format";
+    "pacstall" -> "trap_ctrlc";
+    "package.sh" -> "trap_ctrlc";
+    "build.sh" -> "nproc";
+    "upgrade.sh" -> "nproc";
+    "build.sh" -> "nproc";
+    "upgrade.sh" -> "nproc";
+    "fetch-sources.sh" -> "srcinfo.match_pkg";
+    "package-base.sh" -> "srcinfo.match_pkg";
+    "upgrade.sh" -> "srcinfo.match_pkg";
+    "package-base.sh" -> "srcinfo.print_out";
+    "build.sh" -> "dep_const.apt_compare_to_constraints";
+    "fetch-sources.sh" -> "dep_const.apt_compare_to_constraints";
+    "build.sh" -> "dep_const.get_arch";
+    "fetch-sources.sh" -> "dep_const.get_arch";
+    "build.sh" -> "dep_const.comma_array";
+    "fetch-sources.sh" -> "dep_const.comma_array";
+    "build.sh" -> "dep_const.split_name_and_version";
+    "fetch-sources.sh" -> "dep_const.split_name_and_version";
+    "build.sh" -> "dep_const.get_pipe";
+    "fetch-sources.sh" -> "dep_const.get_pipe";
+    "build.sh" -> "dep_const.strip_description";
+    "build.sh" -> "dep_const.extract_description";
+    "build.sh" -> "dep_const.is_pipe";
+    "fetch-sources.sh" -> "dep_const.is_pipe";
+    "build.sh" -> "dep_const.format_control";
+    "fetch-sources.sh" -> "dep_const.format_control";
+    pacstall -> "error-log.sh";
+    pacstall -> "bwrap.sh";
+    pacstall -> "search.sh";
+    pacstall -> "get-pacscript.sh";
+    pacstall -> "package-base.sh";
+    pacstall -> "remove.sh";
+    pacstall -> "add-repo.sh";
+    pacstall -> "update.sh";
+    pacstall -> "upgrade.sh";
+    pacstall -> "query-info.sh";
+    pacstall -> "quality-assurance.sh";
+
+    // add-repo.sh dependencies
+    "add-repo.sh" -> "manage-repo.sh";
+
+    // build.sh dependencies
+    "build.sh" -> "version-constraints.sh";
+    "build.sh" -> "srcinfo.sh";
+    "build.sh" -> "manage-repo.sh";
+
+    // fetch-sources.sh dependencies
+    "fetch-sources.sh" -> "build.sh";
+
+    // package-base.sh dependencies
+    "package-base.sh" -> "checks.sh";
+    "package-base.sh" -> "fetch-sources.sh";
+    "package-base.sh" -> "package.sh";
+
+    // search.sh dependencies
+    "search.sh" -> "manage-repo.sh";
+
+    // upgrade.sh dependencies
+    "upgrade.sh" -> "dep-tree.sh";
+    "upgrade.sh" -> "fetch-sources.sh";
+    "upgrade.sh" -> "srcinfo.sh";
+    "upgrade.sh" -> "manage-repo.sh";
+    "upgrade.sh" -> "search.sh";
+    "upgrade.sh" -> "get-pacscript.sh";
+    "upgrade.sh" -> "package-base.sh";
+
+    // recursive calls
+    "package.sh" -> pacstall;
+    "quality-assurance.sh" -> pacstall;
+    "update.sh" -> pacstall;
+    "upgrade.sh" -> pacstall;
+    pacstall -> pacstall;
+}

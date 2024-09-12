@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+awk '/\(\) \{/{gsub(/^[ \t]+|[ \t]+$/, "", $0); sub(/\(\)$/, "", $2); print FILENAME, $2}' pacstall misc/scripts/*.sh > function_definitions.txt
+
+while read -r file function; do
+    # Search for the function call in the scripts
+    if grep -qw "$function" pacstall misc/scripts/*.sh; then
+        grep -l "$function" pacstall misc/scripts/*.sh | while read -r caller; do
+            basecall="$(basename $caller)"
+            basefile="$(basename $file)"
+            [[ ${basecall} != ${basefile} ]] && echo "${basecall} calls $function (defined in ${basefile})"
+        done
+    fi
+done < function_definitions.txt > function_calls.txt
+
+echo "digraph FunctionCalls {" > function_map.dot
+echo "rankdir=LR;" >> function_map.dot
+echo "node [shape=box];" >> function_map.dot
+declare -A clusters
+while read -r file function; do
+    basefile=$(basename "$file")
+    clusters["$basefile"]+=$(printf "        \"%s\";\n" "$function")
+done < function_definitions.txt
+
+for file in "${!clusters[@]}"; do
+    clustername="${file//-/}"
+    clustername="${clustername%.sh}"
+    printf "    subgraph cluster_%s {\n" "${clustername}" >> function_map.dot
+    printf "        label = \"%s\";\n" "$file" >> function_map.dot
+    printf "        style = filled;\n" >> function_map.dot
+    printf "        color = lightgrey;\n" >> function_map.dot
+    printf "%s" "        \"${file}\"; ${clusters[$file]}" >> function_map.dot
+    printf "    }\n\n" >> function_map.dot
+done
+
+while read -r line; do
+    caller=$(echo "$line" | awk '{print $1}')
+    callee=$(echo "$line" | awk '{print $3}')
+    echo "    \"$caller\" -> \"$callee\";" >> function_map.dot
+done < function_calls.txt
+
+echo "}" >> function_map.dot
+unset clusters

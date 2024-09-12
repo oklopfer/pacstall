@@ -1,0 +1,70 @@
+digraph ScriptWeb {
+    rankdir=LR;
+    node [shape=box];
+
+    subgraph cluster_recursive {
+        penwidth=0;
+        "update.sh";
+        "upgrade.sh";
+        "quality-assurance.sh";
+    }
+
+    subgraph cluster_helpers {
+        penwidth=0;
+        "error-log.sh";
+        "bwrap.sh";
+        "get-pacscript.sh";
+        "version-constraints.sh";
+        "dep-tree.sh";
+        "srcinfo.sh";
+        "manage-repo.sh";
+        "checks.sh";
+    }
+
+    pacstall -> "error-log.sh";
+    pacstall -> "bwrap.sh";
+    pacstall -> "search.sh";
+    pacstall -> "get-pacscript.sh";
+    pacstall -> "package-base.sh";
+    pacstall -> "remove.sh";
+    pacstall -> "add-repo.sh";
+    pacstall -> "update.sh";
+    pacstall -> "upgrade.sh";
+    pacstall -> "query-info.sh";
+    pacstall -> "quality-assurance.sh";
+
+    // add-repo.sh dependencies
+    "add-repo.sh" -> "manage-repo.sh";
+
+    // build.sh dependencies
+    "build.sh" -> "version-constraints.sh";
+    "build.sh" -> "srcinfo.sh";
+    "build.sh" -> "manage-repo.sh";
+
+    // fetch-sources.sh dependencies
+    "fetch-sources.sh" -> "build.sh";
+
+    // package-base.sh dependencies
+    "package-base.sh" -> "checks.sh";
+    "package-base.sh" -> "fetch-sources.sh";
+    "package-base.sh" -> "package.sh";
+
+    // search.sh dependencies
+    "search.sh" -> "manage-repo.sh";
+
+    // upgrade.sh dependencies
+    "upgrade.sh" -> "dep-tree.sh";
+    "upgrade.sh" -> "fetch-sources.sh";
+    "upgrade.sh" -> "srcinfo.sh";
+    "upgrade.sh" -> "manage-repo.sh";
+    "upgrade.sh" -> "search.sh";
+    "upgrade.sh" -> "get-pacscript.sh";
+    "upgrade.sh" -> "package-base.sh";
+
+    // recursive calls
+    "package.sh" -> pacstall;
+    "quality-assurance.sh" -> pacstall;
+    "update.sh" -> pacstall;
+    "upgrade.sh" -> pacstall;
+    pacstall -> pacstall;
+}
